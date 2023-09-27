@@ -3,3 +3,12 @@ numpy
 pandas
 pydeck
 streamlit
+sklearn
+matplotlib
+seaborn
+kennard_stone
+tensorflow
+keras
+reportlab
+io
+openpyxl
