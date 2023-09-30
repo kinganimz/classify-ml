@@ -10,5 +10,4 @@ kennard_stone
 tensorflow
 keras
 reportlab
-io
 openpyxl
