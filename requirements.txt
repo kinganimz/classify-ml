@@ -12,3 +12,4 @@ keras
 reportlab
 openpyxl
 scikeras
+xlsxwriter
