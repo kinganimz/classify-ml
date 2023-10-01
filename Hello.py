@@ -279,7 +279,7 @@ def pca_tab():
         scores = pd.DataFrame(pca_data, index=df_2_PCA.index, columns=labels)
 
         # Plot
-        plt.style.use('seaborn-whitegrid')
+        sns.set_style('whitegrid')
         csfont = {'fontname':'Trebuchet MS'}
         hfont = {'fontname':'Verdana'}
 
@@ -356,7 +356,7 @@ def pca_tab():
 
         fig, ax = plt.subplots()
         sns.scatterplot(x=scores[x_ax], y=scores[y_ax], ax=ax, hue=df_2_PCA[color_pca], size=df_2_PCA[size_pca])
-        sns.set_style("whitegrid")
+        sns.set_style('whitegrid')
         plt.axhline(0.0, c='gray', linestyle='--')
         plt.axvline(0.0, c='gray', linestyle='--')
         plt.legend(loc='center left', bbox_to_anchor=(1.0, 0.5))
