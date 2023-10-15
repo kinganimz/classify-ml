@@ -90,9 +90,9 @@ def standardize_data(X_train, X_test):
 # Function to generate model statistics
 def generate_model_statistics(y_true, y_pred):
     accuracy = metrics.accuracy_score(y_true, y_pred)
-    precision = metrics.precision_score(y_true, y_pred, pos_label='positive')
-    recall = metrics.recall_score(y_true, y_pred, pos_label='positive')
-    f1_score = metrics.f1_score(y_true, y_pred, pos_label='positive')
+    precision = metrics.precision_score(y_true, y_pred)
+    recall = metrics.recall_score(y_true, y_pred)
+    f1_score = metrics.f1_score(y_true, y_pred)
     matthews_corrcoef = metrics.matthews_corrcoef(y_true, y_pred)
     result_list = [accuracy, precision, recall, f1_score, matthews_corrcoef]
     return result_list
