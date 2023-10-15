@@ -3,13 +3,13 @@ numpy
 pandas
 pydeck
 streamlit
-scikit-learn
-matplotlib
-seaborn
-kennard_stone
 tensorflow
 keras
+kennard_stone
 reportlab
+matplotlib
+seaborn
 openpyxl
+scikit-learn
 scikeras
 xlsxwriter
