@@ -2058,7 +2058,10 @@ def nn_tab():
             grid_search_NN.fit(X_train_NN_std, y_train_NN)
             st.write(f"Best score: {grid_search_NN.best_score_:.2f} using {grid_search_NN.best_params_}")
 
-            # DTC model by gridsearchCV
+            # NN model by gridsearchCV
+            model = create_model(units=grid_search_NN.best_params_['units'], activation=grid_search_NN.best_params_['activation'],
+                                 kernel_initializer=grid_search_NN.best_params_['kernel_initializer'], loss=grid_search_NN.best_params_['loss'],
+                                 optimizer=grid_search_NN.best_params_['optimizer'], X_shape=X_train_NN_std.shape)
             model.fit(X_train_NN_std, y_train_NN, batch_size=grid_search_NN.best_params_['batch_size'], epochs=grid_search_NN.best_params_['epochs'])
 
 
@@ -2071,10 +2074,11 @@ def nn_tab():
             with col2:
                 epochs = st.number_input('Insert a number of epochs', 1, 50, key="epochs_NN")
 
-            # Decision Tree model by user
-            model = KerasClassifier(build_fn=create_model, units=units, activation=activation,
-                                    kernel_initializer=kernel_initializer, loss=loss, optimizer=optimizer)
+            # NN model by user
+            model = create_model(units=units, activation=activation, kernel_initializer=kernel_initializer,
+                                 loss=loss, optimizer=optimizer, X_shape=X_train_NN_std.shape)
             model.fit(X_train_NN_std, y_train_NN, batch_size=batch_size, epochs=epochs)
+
 
         # Predicted values
         y_pred_NN = model.predict(X_test_NN_std)
