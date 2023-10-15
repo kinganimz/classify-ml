@@ -12,11 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+# PACKAGES
+
+
 import streamlit as st
 from streamlit.logger import get_logger
-
-LOGGER = get_logger(__name__)
-import streamlit as st
 import pandas as pd
 import openpyxl
 import numpy as np
@@ -52,6 +52,8 @@ from reportlab.lib.pagesizes import letter
 from io import BytesIO
 from reportlab.platypus import Image
 from sklearn.tree import plot_tree
+
+LOGGER = get_logger(__name__)
 
 ## FUNCTIONS
 
@@ -1033,7 +1035,7 @@ def svm_tab():
         # Prepare to report
         counts_SVM = without_NA_y_SVM.value_counts().tolist()
         column_names_list = X_df_2_SVM.columns
-        output_str_SVM = ",\n".join(column_names_list)  # Dodaj przecinki pomiędzy nazwami deskryptorów
+        output_str_SVM = ",\n".join(column_names_list) 
         split_SVM_train = 1 - split_SVM
 
 
