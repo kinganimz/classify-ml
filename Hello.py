@@ -90,9 +90,9 @@ def standardize_data(X_train, X_test):
 # Function to generate model statistics
 def generate_model_statistics(y_true, y_pred):
     accuracy = metrics.accuracy_score(y_true, y_pred)
-    precision = metrics.precision_score(y_true, y_pred)
-    recall = metrics.recall_score(y_true, y_pred)
-    f1_score = metrics.f1_score(y_true, y_pred)
+    precision = metrics.precision_score(y_true, y_pred, average='weighted')
+    recall = metrics.recall_score(y_true, y_pred, average='weighted')
+    f1_score = metrics.f1_score(y_true, y_pred, average='weighted')
     matthews_corrcoef = metrics.matthews_corrcoef(y_true, y_pred)
     result_list = [accuracy, precision, recall, f1_score, matthews_corrcoef]
     return result_list
@@ -281,7 +281,7 @@ def pca_tab():
         scores = pd.DataFrame(pca_data, index=df_2_PCA.index, columns=labels)
 
         # Plot
-        sns.set_style('whitegrid')
+        plt.style.use('seaborn-whitegrid')
         csfont = {'fontname':'Trebuchet MS'}
         hfont = {'fontname':'Verdana'}
 
@@ -358,7 +358,7 @@ def pca_tab():
 
         fig, ax = plt.subplots()
         sns.scatterplot(x=scores[x_ax], y=scores[y_ax], ax=ax, hue=df_2_PCA[color_pca], size=df_2_PCA[size_pca])
-        sns.set_style('whitegrid')
+        sns.set_style("whitegrid")
         plt.axhline(0.0, c='gray', linestyle='--')
         plt.axvline(0.0, c='gray', linestyle='--')
         plt.legend(loc='center left', bbox_to_anchor=(1.0, 0.5))
@@ -813,6 +813,87 @@ def knn_tab():
             key="button_excel_KNN"
         )
 
+# ADD SECTION FOR NEXT PREDICTIONS USED CREATED MODEL!
+
+        st.subheader(" ")
+        st.subheader("Use your new model for new dataset!")
+
+        new_data = st.file_uploader("Upload your data here...", type=['xlsx'])
+
+        if new_data is not None:
+            # Read the uploaded file into a DataFrame
+            if new_data.type == "text/csv":
+                df_uploaded = pd.read_csv(new_data)
+            elif new_data.type == "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet":
+                df_uploaded = pd.read_excel(new_data)
+            else:
+                st.error("Unsupported file format")
+
+            # Choose variables
+            st.markdown('#### Choose variables to create your new data!')
+            # X variables
+            X_KNN_new = st.multiselect('Select descriptors to build the model:', df_uploaded.columns, key="x_multiselect_KNN_new")
+
+            # Validate X_KNN_new before using it
+            if X_KNN_new:
+                # Combine selected variables
+                df_KNN_new = pd.DataFrame(df_uploaded[X_KNN_new])
+                st.markdown('##### The dataset created by you:')
+                st.write(df_KNN_new)
+            else:
+                st.write("Please select descriptors to build the model.")
+
+            # Removing NA values
+            new_data_knn = df_KNN_new.dropna(axis=0, how="any")
+            st.markdown(" ")
+            st.markdown('##### Your dataset after removing NA values looks like this:')
+
+            if st.button('View dataset', key='button_na_new_KNN'):
+                st.write(new_data_knn)
+            else:
+                st.write(' ')
+
+
+            # Categorical variables
+            st.subheader('Categorical variables converting')
+            cat_variables_new_KNN = st.multiselect('Choose categorical variable(s) to separate descriptors:', new_data_knn.columns, key="cat_var_KNN_new")
+
+            if cat_variables_KNN:
+                new_data_knn = separate_categorical(new_data_knn, cat_variables_new_KNN)
+                st.markdown(" ")
+                st.markdown('##### Your dataset with categorical variables separated looks like this:')
+                st.write(new_data_knn)
+            else:
+                st.markdown('##### You have not selected any categorical variable to separate. Your dataset remains unchanged:')
+                new_data_knn = new_data_knn
+                st.write(new_data_knn)
+
+                # Instead of error, show messages below  
+            if not X_KNN_new:
+                st.warning("Please select descriptors to build the model.")
+                execute_knn = False
+            elif not all(new_data_knn.dtypes.apply(lambda x: np.issubdtype(x, np.number) or np.issubdtype(x, np.bool_))):
+                st.warning("Ensure all selected descriptors are either in numeric or boolean format.")
+                execute_knn = False
+
+            if execute_knn:
+                # Standardization
+                st.subheader("Standardize your data")
+                st.markdown("Standardize the data for better model performance.")
+                scaler = StandardScaler()
+                new_data_scaled_knn = scaler.fit_transform(new_data_knn)
+
+                st.markdown("##### Training Set (Standardized)")
+                new_data_scaled_df_knn = pd.DataFrame(new_data_scaled_knn)
+                st.write(new_data_scaled_df_knn)
+
+                st.subheader("Check your predictions!")
+                predictions_knn = KNN.predict(new_data_scaled_df_knn)
+                st.write(predictions_knn)
+
+        else:
+            st.subheader('Choose your new data to predict property/activity!')
+
 
 # Support Vector Machine (SVM) function
 def svm_tab():
@@ -978,8 +1059,7 @@ def svm_tab():
         st.subheader("Let's check how our model is doing")
         st.markdown("Below you can find calculated statistics, allowing you to assess the performance, as well as the correctness of the created predictive model.")
 
-        ## !CHANGE: the user can change colors of confustion matrixes itself
-        ## !CHANGE: generowanie grafik oddzielnie (rozne formaty), tabele oddzielnie do .xlsx/.csv
+        ## !CHANGE: generowanie grafik oddzielnie (rozne formaty), tabele oddzielnie do .xlsx/.csv?
 
         # Statistics
         train_stats_SVM = generate_model_statistics(y_train_SVM, y_pred_train_SVM)
@@ -1035,7 +1115,7 @@ def svm_tab():
         # Prepare to report
         counts_SVM = without_NA_y_SVM.value_counts().tolist()
         column_names_list = X_df_2_SVM.columns
-        output_str_SVM = ",\n".join(column_names_list) 
+        output_str_SVM = ",\n".join(column_names_list)  # Dodaj przecinki pomiędzy nazwami deskryptorów
         split_SVM_train = 1 - split_SVM
 
 
@@ -1155,6 +1235,87 @@ def svm_tab():
         )
 
 
+        # ADD SECTION FOR NEXT PREDICTIONS USED CREATED MODEL!
+
+        st.subheader(" ")
+        st.subheader("Use your new model for new dataset!")
+
+        new_data = st.file_uploader("Upload your data here...", type=['xlsx'])
+
+        if new_data is not None:
+            # Read the uploaded file into a DataFrame
+            if new_data.type == "text/csv":
+                df_uploaded = pd.read_csv(new_data)
+            elif new_data.type == "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet":
+                df_uploaded = pd.read_excel(new_data)
+            else:
+                st.error("Unsupported file format")
+
+            # Choose variables
+            st.markdown('#### Choose variables to create your new data!')
+            # X variables
+            X_svc_new = st.multiselect('Select descriptors to build the model:', df_uploaded.columns, key="x_multiselect_svc_new")
+
+            # Validate X_svc_new before using it
+            if X_svc_new:
+                # Combine selected variables
+                df_svc_new = pd.DataFrame(df_uploaded[X_svc_new])
+                st.markdown('##### The dataset created by you:')
+                st.write(df_svc_new)
+            else:
+                st.write("Please select descriptors to build the model.")
+
+            # Removing NA values
+            new_data_svc = df_svc_new.dropna(axis=0, how="any")
+            st.markdown(" ")
+            st.markdown('##### Your dataset after removing NA values looks like this:')
+
+            if st.button('View dataset', key='button_na_new_svc'):
+                st.write(new_data_svc)
+            else:
+                st.write(' ')
+
+
+            # Categorical variables
+            st.subheader('Categorical variables converting')
+            cat_variables_new_svc = st.multiselect('Choose categorical variable(s) to separate descriptors:', new_data_svc.columns, key="cat_var_svc_new")
+
+            if cat_variables_new_svc:
+                new_data_svc = separate_categorical(new_data_svc, cat_variables_new_svc)
+                st.markdown(" ")
+                st.markdown('##### Your dataset with categorical variables separated looks like this:')
+                st.write(new_data_svc)
+            else:
+                st.markdown('##### You have not selected any categorical variable to separate. Your dataset remains unchanged:')
+                new_data_svc = new_data_svc
+                st.write(new_data_svc)
+
+                # Instead of error, show messages below  
+            if not X_svc_new:
+                st.warning("Please select descriptors to build the model.")
+                execute_svc = False
+            elif not all(new_data_svc.dtypes.apply(lambda x: np.issubdtype(x, np.number) or np.issubdtype(x, np.bool_))):
+                st.warning("Ensure all selected descriptors are either in numeric or boolean format.")
+                execute_svc = False
+
+            if execute_svc:
+                # Standardization
+                st.subheader("Standardize your data")
+                st.markdown("Standardize the data for better model performance.")
+                scaler = StandardScaler()
+                new_data_scaled_svc = scaler.fit_transform(new_data_svc)
+
+                st.markdown("##### Training Set (Standardized)")
+                new_data_scaled_df_svc = pd.DataFrame(new_data_scaled_svc)
+                st.write(new_data_scaled_df_svc)
+
+                st.subheader("Check your predictions!")
+                predictions_svc = svc.predict(new_data_scaled_df_svc)
+                st.write(predictions_svc)
+
+        else:
+            st.subheader('Choose your new data to predict property/activity!')
+            
 # Decision Tree Classifier (DTC) Function
 def dtc_tab():
 
@@ -1517,6 +1678,87 @@ def dtc_tab():
             key="button_excel_DTC"
         )
 
+
+        # ADD SECTION FOR NEXT PREDICTIONS USED CREATED MODEL!
+
+        st.subheader(" ")
+        st.subheader("Use your new model for new dataset!")
+
+        new_data = st.file_uploader("Upload your data here...", type=['xlsx'])
+
+        if new_data is not None:
+            # Read the uploaded file into a DataFrame
+            if new_data.type == "text/csv":
+                df_uploaded = pd.read_csv(new_data)
+            elif new_data.type == "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet":
+                df_uploaded = pd.read_excel(new_data)
+            else:
+                st.error("Unsupported file format")
+
+            # Choose variables
+            st.markdown('#### Choose variables to create your new data!')
+            # X variables
+            X_dtc_new = st.multiselect('Select descriptors to build the model:', df_uploaded.columns, key="x_multiselect_dtc_new")
+
+            # Validate X_dtc_new before using it
+            if X_dtc_new:
+                # Combine selected variables
+                df_dtc_new = pd.DataFrame(df_uploaded[X_dtc_new])
+                st.markdown('##### The dataset created by you:')
+                st.write(df_dtc_new)
+            else:
+                st.write("Please select descriptors to build the model.")
+
+            # Removing NA values
+            new_data_dtc = df_dtc_new.dropna(axis=0, how="any")
+            st.markdown(" ")
+            st.markdown('##### Your dataset after removing NA values looks like this:')
+
+            if st.button('View dataset', key='button_na_new_dtc'):
+                st.write(new_data_dtc)
+            else:
+                st.write(' ')
+
+
+            # Categorical variables
+            st.subheader('Categorical variables converting')
+            cat_variables_new_dtc = st.multiselect('Choose categorical variable(s) to separate descriptors:', new_data_dtc.columns, key="cat_var_dtc_new")
+
+            if cat_variables_new_dtc:
+                new_data_dtc = separate_categorical(new_data_dtc, cat_variables_new_dtc)
+                st.markdown(" ")
+                st.markdown('##### Your dataset with categorical variables separated looks like this:')
+                st.write(new_data_dtc)
+            else:
+                st.markdown('##### You have not selected any categorical variable to separate. Your dataset remains unchanged:')
+                new_data_dtc = new_data_dtc
+                st.write(new_data_dtc)
+
+                # Instead of error, show messages below  
+            if not X_dtc_new:
+                st.warning("Please select descriptors to build the model.")
+                execute_dtc = False
+            elif not all(new_data_dtc.dtypes.apply(lambda x: np.issubdtype(x, np.number) or np.issubdtype(x, np.bool_))):
+                st.warning("Ensure all selected descriptors are either in numeric or boolean format.")
+                execute_dtc = False
+
+            if execute_dtc:
+                # Standardization
+                st.subheader("Standardize your data")
+                st.markdown("Standardize the data for better model performance.")
+                scaler = StandardScaler()
+                new_data_scaled_dtc = scaler.fit_transform(new_data_dtc)
+
+                st.markdown("##### Training Set (Standardized)")
+                new_data_scaled_df_dtc = pd.DataFrame(new_data_scaled_dtc)
+                st.write(new_data_scaled_df_dtc)
+
+                st.subheader("Check your predictions!")
+                predictions_dtc = dtc.predict(new_data_scaled_df_dtc)
+                st.write(predictions_dtc)
+
+        else:
+            st.subheader('Choose your new data to predict property/activity!')
 
 # Random Forest Classifier (RFC) function
 def rfc_tab():
@@ -1888,6 +2130,87 @@ def rfc_tab():
             key="button_excel_RFC"
         )
 
+        # ADD SECTION FOR NEXT PREDICTIONS USED CREATED MODEL!
+
+        st.subheader(" ")
+        st.subheader("Use your new model for new dataset!")
+
+        new_data = st.file_uploader("Upload your data here...", type=['xlsx'])
+
+        if new_data is not None:
+            # Read the uploaded file into a DataFrame
+            if new_data.type == "text/csv":
+                df_uploaded = pd.read_csv(new_data)
+            elif new_data.type == "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet":
+                df_uploaded = pd.read_excel(new_data)
+            else:
+                st.error("Unsupported file format")
+
+            # Choose variables
+            st.markdown('#### Choose variables to create your new data!')
+            # X variables
+            X_rfc_new = st.multiselect('Select descriptors to build the model:', df_uploaded.columns, key="x_multiselect_rfc_new")
+
+            # Validate X_rfc_new before using it
+            if X_rfc_new:
+                # Combine selected variables
+                df_rfc_new = pd.DataFrame(df_uploaded[X_rfc_new])
+                st.markdown('##### The dataset created by you:')
+                st.write(df_rfc_new)
+            else:
+                st.write("Please select descriptors to build the model.")
+
+            # Removing NA values
+            new_data_rfc = df_rfc_new.dropna(axis=0, how="any")
+            st.markdown(" ")
+            st.markdown('##### Your dataset after removing NA values looks like this:')
+
+            if st.button('View dataset', key='button_na_new_rfc'):
+                st.write(new_data_rfc)
+            else:
+                st.write(' ')
+
+
+            # Categorical variables
+            st.subheader('Categorical variables converting')
+            cat_variables_new_rfc = st.multiselect('Choose categorical variable(s) to separate descriptors:', new_data_rfc.columns, key="cat_var_rfc_new")
+
+            if cat_variables_new_rfc:
+                new_data_rfc = separate_categorical(new_data_rfc, cat_variables_new_rfc)
+                st.markdown(" ")
+                st.markdown('##### Your dataset with categorical variables separated looks like this:')
+                st.write(new_data_rfc)
+            else:
+                st.markdown('##### You have not selected any categorical variable to separate. Your dataset remains unchanged:')
+                new_data_rfc = new_data_rfc
+                st.write(new_data_rfc)
+
+                # Instead of error, show messages below  
+            if not X_rfc_new:
+                st.warning("Please select descriptors to build the model.")
+                execute_rfc = False
+            elif not all(new_data_rfc.dtypes.apply(lambda x: np.issubdtype(x, np.number) or np.issubdtype(x, np.bool_))):
+                st.warning("Ensure all selected descriptors are either in numeric or boolean format.")
+                execute_rfc = False
+
+            if execute_rfc:
+                # Standardization
+                st.subheader("Standardize your data")
+                st.markdown("Standardize the data for better model performance.")
+                scaler = StandardScaler()
+                new_data_scaled_rfc = scaler.fit_transform(new_data_rfc)
+
+                st.markdown("##### Training Set (Standardized)")
+                new_data_scaled_df_rfc = pd.DataFrame(new_data_scaled_rfc)
+                st.write(new_data_scaled_df_rfc)
+
+                st.subheader("Check your predictions!")
+                predictions_rfc = rfc.predict(new_data_scaled_df_rfc)
+                st.write(predictions_rfc)
+
+        else:
+            st.subheader('Choose your new data to predict property/activity!')
+
 
 # Neural Network (NN) function
 def nn_tab():
@@ -2058,10 +2381,7 @@ def nn_tab():
             grid_search_NN.fit(X_train_NN_std, y_train_NN)
             st.write(f"Best score: {grid_search_NN.best_score_:.2f} using {grid_search_NN.best_params_}")
 
-            # NN model by gridsearchCV
-            model = create_model(units=grid_search_NN.best_params_['units'], activation=grid_search_NN.best_params_['activation'],
-                                 kernel_initializer=grid_search_NN.best_params_['kernel_initializer'], loss=grid_search_NN.best_params_['loss'],
-                                 optimizer=grid_search_NN.best_params_['optimizer'], X_shape=X_train_NN_std.shape)
+            # DTC model by gridsearchCV
             model.fit(X_train_NN_std, y_train_NN, batch_size=grid_search_NN.best_params_['batch_size'], epochs=grid_search_NN.best_params_['epochs'])
 
 
@@ -2074,11 +2394,10 @@ def nn_tab():
             with col2:
                 epochs = st.number_input('Insert a number of epochs', 1, 50, key="epochs_NN")
 
-            # NN model by user
-            model = create_model(units=units, activation=activation, kernel_initializer=kernel_initializer,
-                                 loss=loss, optimizer=optimizer, X_shape=X_train_NN_std.shape)
+            # Decision Tree model by user
+            model = KerasClassifier(build_fn=create_model, units=units, activation=activation,
+                                    kernel_initializer=kernel_initializer, loss=loss, optimizer=optimizer)
             model.fit(X_train_NN_std, y_train_NN, batch_size=batch_size, epochs=epochs)
-
 
         # Predicted values
         y_pred_NN = model.predict(X_test_NN_std)
@@ -2256,6 +2575,87 @@ def nn_tab():
             mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
             key="button_excel_NN"
         )
+
+        # ADD SECTION FOR NEXT PREDICTIONS USED CREATED MODEL!
+
+        st.subheader(" ")
+        st.subheader("Use your new model for new dataset!")
+
+        new_data = st.file_uploader("Upload your data here...", type=['xlsx'])
+
+        if new_data is not None:
+            # Read the uploaded file into a DataFrame
+            if new_data.type == "text/csv":
+                df_uploaded = pd.read_csv(new_data)
+            elif new_data.type == "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet":
+                df_uploaded = pd.read_excel(new_data)
+            else:
+                st.error("Unsupported file format")
+
+            # Choose variables
+            st.markdown('#### Choose variables to create your new data!')
+            # X variables
+            X_nn_new = st.multiselect('Select descriptors to build the model:', df_uploaded.columns, key="x_multiselect_nn_new")
+
+            # Validate X_nn_new before using it
+            if X_nn_new:
+                # Combine selected variables
+                df_nn_new = pd.DataFrame(df_uploaded[X_nn_new])
+                st.markdown('##### The dataset created by you:')
+                st.write(df_nn_new)
+            else:
+                st.write("Please select descriptors to build the model.")
+
+            # Removing NA values
+            new_data_nn = df_nn_new.dropna(axis=0, how="any")
+            st.markdown(" ")
+            st.markdown('##### Your dataset after removing NA values looks like this:')
+
+            if st.button('View dataset', key='button_na_new_nn'):
+                st.write(new_data_nn)
+            else:
+                st.write(' ')
+
+
+            # Categorical variables
+            st.subheader('Categorical variables converting')
+            cat_variables_new_nn = st.multiselect('Choose categorical variable(s) to separate descriptors:', new_data_nn.columns, key="cat_var_nn_new")
+
+            if cat_variables_new_nn:
+                new_data_nn = separate_categorical(new_data_nn, cat_variables_new_nn)
+                st.markdown(" ")
+                st.markdown('##### Your dataset with categorical variables separated looks like this:')
+                st.write(new_data_nn)
+            else:
+                st.markdown('##### You have not selected any categorical variable to separate. Your dataset remains unchanged:')
+                new_data_nn = new_data_nn
+                st.write(new_data_nn)
+
+                # Instead of error, show messages below  
+            if not X_nn_new:
+                st.warning("Please select descriptors to build the model.")
+                execute_nn = False
+            elif not all(new_data_nn.dtypes.apply(lambda x: np.issubdtype(x, np.number) or np.issubdtype(x, np.bool_))):
+                st.warning("Ensure all selected descriptors are either in numeric or boolean format.")
+                execute_nn = False
+
+            if execute_nn:
+                # Standardization
+                st.subheader("Standardize your data")
+                st.markdown("Standardize the data for better model performance.")
+                scaler = StandardScaler()
+                new_data_scaled_nn = scaler.fit_transform(new_data_nn)
+
+                st.markdown("##### Training Set (Standardized)")
+                new_data_scaled_df_nn = pd.DataFrame(new_data_scaled_nn)
+                st.write(new_data_scaled_df_nn)
+
+                st.subheader("Check your predictions!")
+                predictions_nn = model.predict(new_data_scaled_df_nn)
+                st.write(predictions_nn)
+
+        else:
+            st.subheader('Choose your new data to predict property/activity!')
 
 
 
