@@ -16,7 +16,6 @@
 
 
 import streamlit as st
-from streamlit.logger import get_logger
 import pandas as pd
 import openpyxl
 import numpy as np
@@ -35,7 +34,7 @@ from sklearn.tree import DecisionTreeClassifier
 from sklearn.ensemble import RandomForestClassifier
 import tensorflow as tf
 from tensorflow import keras
-from scikeras.wrappers import KerasClassifier
+from keras.wrappers.scikit_learn import KerasClassifier
 from keras.layers import Dense
 from sklearn.svm import SVC
 from sklearn import metrics
@@ -52,8 +51,6 @@ from reportlab.lib.pagesizes import letter
 from io import BytesIO
 from reportlab.platypus import Image
 from sklearn.tree import plot_tree
-
-LOGGER = get_logger(__name__)
 
 ## FUNCTIONS
 
@@ -2130,7 +2127,6 @@ def rfc_tab():
             key="button_excel_RFC"
         )
 
-        # ADD SECTION FOR NEXT PREDICTIONS USED CREATED MODEL!
 
         st.subheader(" ")
         st.subheader("Use your new model for new dataset!")
@@ -2657,12 +2653,425 @@ def nn_tab():
         else:
             st.subheader('Choose your new data to predict property/activity!')
 
+def summary():
+
+    st.title("Summary")
+    st.markdown('##### Make a predictive models using all 5 methods and compare all of them')
+
+    # Choose descriptors to model + observed value/effect
+    st.subheader('Create your dataset to modeling')
+
+    # X variables
+    X_S = st.multiselect('Select descriptors to build the model:', df.columns, key="x_multiselect_S")
+
+    # y variable
+    y_S = st.multiselect('Select the property you would like to model:', df.columns, key="y_multiselect_S")
+
+    # Add a flag to control the flow of execution
+    execute_s = True
+
+    # Combine selected variables
+    df_S = create_dataset(df, X_S, y_S)
+    st.markdown('##### The dataset created by you:')
+    st.write(df_S)
+
+
+    # Removing NA values
+    without_NA_S = df_S.dropna(axis=0, how="any")
+    st.markdown(" ")
+    st.markdown('##### Your dataset after removing NA values looks like this:')
+
+    if st.button('View dataset', key='button_NA_S'):
+        st.write(without_NA_S)
+    else:
+        st.write(' ')
+
+    # Usuwamy wybrane kolumny 'X' i 'y' z całego zbioru danych 'without_NA'
+    without_NA_X_S = without_NA_S.drop(columns=y_S)
+    without_NA_y_S = without_NA_S[y_S]
+
+
+    # Categorical variables
+    st.subheader('Categorical variables converting')
+    cat_variables_S = st.multiselect('Choose categorical variable(s) to separate descriptors:', without_NA_X_S.columns, key="cat_var_NN")
+
+    if cat_variables_S:
+        X_df_2_S = separate_categorical(without_NA_X_S, cat_variables_S)
+        st.markdown(" ")
+        st.markdown('##### Your dataset with categorical variables separated looks like this:')
+        all_df_S = X_df_2_S.join(without_NA_y_S)
+        st.write(all_df_S)
+    else:
+        st.markdown('##### You have not selected any categorical variable to separate. Your dataset remains unchanged:')
+        X_df_2_S = without_NA_X_S
+        all_df_S = X_df_2_S.join(without_NA_y_S)
+        st.write(all_df_S)
+
+
+    # Data splitting (train and test sets)
+    st.subheader("It's time to split your data for traning and validation sets!")
+    # Choose a method & split data
+
+    col1, col2 = st.columns(2)
+
+    with col1:
+        method_S = st.radio("###### Which method do you choose?", 
+                                ("Scikit-learn (random)", "Kennard Stone"), key="method_split_S")
+    
+    with col2:
+        split_S = (st.slider("###### How much of the harvest will you devote to testing the model? [%]", min_value=10, max_value=40, key="split_S"))/100
+
+
+    # Splitting
+    if method_S == "Scikit-learn (random)":
+        X_train_S, X_test_S, y_train_S, y_test_S = split_data(X_df_2_S, without_NA_y_S, method_S, split_S)
+    else:
+        X_train_S, X_test_S, y_train_S, y_test_S = split_data(X_df_2_S, without_NA_y_S, method_S, split_S)
+
+    st.markdown(' ')
+    st.subheader("View your training and validation sets")
+    col1, col2 = st.columns(2)
+    with col1:
+        st.markdown("##### Training Set")
+        train_set_S = X_train_S.join(y_train_S)
+        if st.button('View Training Set', key="button_train_set_S"):
+            st.write(train_set_S)
+        else:
+            st.write(' ')
+    with col2:
+        st.markdown("##### Validation Set")
+        valid_set_S = X_test_S.join(y_test_S)
+        if st.button('View Validation Set', key="button_valid_set_S"):
+            st.write(valid_set_S)
+        else:
+            st.write(' ')
+
+    # Instead of error, show messages below   
+    if not X_S:
+        st.warning("Please select descriptors to build the model.")
+        execute_s = False
+    elif not y_S:
+        st.warning("Please select the property you'd like to model.")
+        execute_s = False
+    elif not all(X_df_2_S.dtypes.apply(lambda x: np.issubdtype(x, np.number) or np.issubdtype(x, np.bool_))):
+        st.warning("Ensure all selected descriptors are either in numeric or boolean format.")
+        execute_s = False
+
+    if execute_s:      
+        # Standardization
+        st.subheader("Standardize your data")
+        st.markdown("Standardize the data for better model performance.")
+        X_train_S_std, X_test_S_std = standardize_data(X_train_S, X_test_S)
+
+        st.markdown("##### Training Set (Standardized)")
+        train_scaled_S_df = pd.DataFrame(X_train_S_std)
+        st.write(train_scaled_S_df)
+
+        st.markdown("##### Validation Set (Standardized)")
+        valid_scaled_S_df = pd.DataFrame(X_test_S_std)
+        st.write(valid_scaled_S_df)
+
+
+
+        # M O D E L S
+        st.subheader("Let's create your models!")
+        st.markdown("Below you can see the best hyperparameter chosen by GridSearchCV...")
+
+        # K-Nearest Neighbors
+
+        param_grid_knn = {'n_neighbors':list(range(2,10)),
+                    'weights':['distance', 'uniform']}
+        
+        kNN = KNeighborsClassifier()
+        grid_search_KNN = GridSearchCV(estimator=kNN, param_grid=param_grid_knn, cv=10, verbose=True)
+        grid_search_KNN.fit(X_train_S_std, y_train_S)
+        st.write(f"K-NN: best score: {grid_search_KNN.best_score_:.2f} using {grid_search_KNN.best_params_}")
+        #st.write("Best score: %f using %s" % (grid_search.best_score_, grid_search.best_params_))
+
+        # kNN model by gridsearchCV
+        KNN = KNeighborsClassifier(**grid_search_KNN.best_params_)
+        KNN.fit(X_train_S_std, y_train_S)
+
+        # Prediction
+        y_pred_knn = KNN.predict(X_test_S_std)
+        y_pred_train_knn = KNN.predict(X_train_S_std)
+        
+        # Statistics
+        train_stats_knn = generate_model_statistics(y_train_S, y_pred_train_knn)
+        valid_stats_knn = generate_model_statistics(y_test_S, y_pred_knn)
+
+
+        # Support Vector Machine
+
+        param_grid_svm = {'C':[0.1,1],
+            'kernel':['linear','rbf','poly']}
+        
+        svc = SVC()
+        grid_search_SVM = GridSearchCV(estimator=svc, param_grid=param_grid_svm, cv=5, verbose=True)
+        grid_search_SVM.fit(X_train_S_std, y_train_S)
+        st.write(f"SVM: best score: {grid_search_SVM.best_score_:.2f} using {grid_search_SVM.best_params_}")
+        #st.write("Best score: %f using %s" % (grid_search.best_score_, grid_search.best_params_))
+
+        # SVM model by gridsearchCV
+        svc = SVC(**grid_search_SVM.best_params_)
+        svc.fit(X_train_S_std, y_train_S)
+
+        # Prediction
+        y_pred_svm = svc.predict(X_test_S_std)
+        y_pred_train_svm = svc.predict(X_train_S_std)
+        
+        # Statistics
+        train_stats_svm = generate_model_statistics(y_train_S, y_pred_train_svm)
+        valid_stats_svm = generate_model_statistics(y_test_S, y_pred_svm)
+
+
+
+
+        # Decision Tree
+
+        param_grid_dtc = {'max_features': ['sqrt', 'log2'],
+                        'max_depth' : list(range(2,6)),
+                        'criterion' :['gini', 'entropy', 'log_loss'],
+                        'splitter': ['best', 'random']}
+        
+        dtc = DecisionTreeClassifier(random_state=24)
+        grid_search_DTC = GridSearchCV(estimator=dtc, param_grid=param_grid_dtc, cv=10, verbose=True)
+        grid_search_DTC.fit(X_train_S_std, y_train_S)
+        st.write(f"Decision Tree: best score: {grid_search_DTC.best_score_:.2f} using {grid_search_DTC.best_params_}")
+        #st.write("Best score: %f using %s" % (grid_search.best_score_, grid_search.best_params_))
+
+        # DTC model by gridsearchCV
+        dtc = DecisionTreeClassifier(**grid_search_DTC.best_params_, random_state=24)
+        dtc.fit(X_train_S_std, y_train_S)
+
+        # Prediction
+        y_pred_dtc = dtc.predict(X_test_S_std)
+        y_pred_train_dtc = dtc.predict(X_train_S_std)
+        
+        # Statistics
+        train_stats_dtc = generate_model_statistics(y_train_S, y_pred_train_dtc)
+        valid_stats_dtc = generate_model_statistics(y_test_S, y_pred_dtc)
+
+
+
+        # Random Forest
+
+        param_grid_rfc = {'n_estimators': [50, 100, 200],
+                'max_features': ['sqrt', 'log2'],
+                'max_depth' : [2,3,4],
+                'criterion' :['gini', 'entropy']}
+        
+        rfc = RandomForestClassifier(random_state=24)
+        grid_search_RFC = GridSearchCV(estimator=rfc, param_grid=param_grid_rfc, cv=10, verbose=True)
+        grid_search_RFC.fit(X_train_S_std, y_train_S)
+        st.write(f"Random Forest: best score: {grid_search_RFC.best_score_:.2f} using {grid_search_RFC.best_params_}")
+        #st.write("Best score: %f using %s" % (grid_search.best_score_, grid_search.best_params_))
+
+        # RFC model by gridsearchCV
+        rfc = RandomForestClassifier(**grid_search_RFC.best_params_, random_state=24)
+        rfc.fit(X_train_S_std, y_train_S)
+
+        # Prediction
+        y_pred_rfc = rfc.predict(X_test_S_std)
+        y_pred_train_rfc = rfc.predict(X_train_S_std)
+        
+        # Statistics
+        train_stats_rfc = generate_model_statistics(y_train_S, y_pred_train_rfc)
+        valid_stats_rfc = generate_model_statistics(y_test_S, y_pred_rfc)
+
+
+
+        # Neural Netowrk
+
+        st.subheader("Choose the parameters for neural network model!")
+
+        col1, col2 = st.columns([0.5, 0.5])
+        with col1:
+            units = st.number_input('Insert a number of units:', 5, 50, key="units_NN")
+            activation = st.radio('Choose an activation method:', ('relu', 'tanh', 'softmax'), key="activation_NN")
+            kernel_initializer = st.radio('Choose a kernel initializer:', ('random_uniform', 'normal'), key="kernel_initializer_NN")
+
+        with col2:
+            loss = st.radio('Choose a loss function:', ('binary_crossentropy', 'hinge'), key="loss_NN")
+            optimizer = st.radio('Choose a optimizer:', ('adam', 'sgd'), key="optimizer_NN")
+
+
+        def create_model(units, activation, kernel_initializer, loss, optimizer):
+
+            model = keras.Sequential([
+                keras.layers.Flatten(input_shape=(X_train_S_std.shape[1],)),
+                keras.layers.Dense(units=units, activation=activation,kernel_initializer=kernel_initializer),
+                keras.layers.Dense(units=units, activation=activation,kernel_initializer=kernel_initializer),
+                keras.layers.Dense(units=units, activation=activation,kernel_initializer=kernel_initializer),
+                keras.layers.Dense(units=1, activation='sigmoid', kernel_initializer='uniform')
+
+            ])
+        
+            # compile the keras model
+            model.compile(loss=loss, optimizer=optimizer, metrics=['accuracy'])
+
+            return model
+        
+
+        # GridSearchCV
+        param_grid_nn = {'batch_size': [50, 100, 200],
+                        'epochs': [1, 10, 20]}
+        
+        # Create the KerasClassifier object with the create_model function
+        model = KerasClassifier(build_fn=create_model, units=units, activation=activation,
+                                kernel_initializer=kernel_initializer, loss=loss, optimizer=optimizer)
+        grid_search_NN = GridSearchCV(estimator=model, param_grid=param_grid_nn, cv=10, verbose=True)
+        grid_search_NN.fit(X_train_S_std, y_train_S)
+        st.write(f"Neural network: best score: {grid_search_NN.best_score_:.2f} using {grid_search_NN.best_params_}")
+
+        # NN model by gridsearchCV
+        model.fit(X_train_S_std, y_train_S, batch_size=grid_search_NN.best_params_['batch_size'], epochs=grid_search_NN.best_params_['epochs'])
+
+        # Prediction
+        y_pred_nn = model.predict(X_test_S_std)
+        y_pred_train_nn = model.predict(X_train_S_std)
+        
+        # Statistics
+        train_stats_nn = generate_model_statistics(y_train_S, y_pred_train_nn)
+        valid_stats_nn = generate_model_statistics(y_test_S, y_pred_nn)
+
+
+
+        ## Creating a DataFrame by merging these lists (train sets)
+        data_train = {
+            "Accuracy": [train_stats_knn[0], train_stats_svm[0], train_stats_dtc[0], train_stats_rfc[0], train_stats_nn[0]],
+            "Precision": [train_stats_knn[1], train_stats_svm[1], train_stats_dtc[1], train_stats_rfc[1], train_stats_nn[1]],
+            "Recall": [train_stats_knn[2], train_stats_svm[2], train_stats_dtc[2], train_stats_rfc[2], train_stats_nn[2]],
+            "F1 Score": [train_stats_knn[3], train_stats_svm[3], train_stats_dtc[3], train_stats_rfc[3], train_stats_nn[3]],
+            "MCC": [train_stats_knn[4], train_stats_svm[4], train_stats_dtc[4], train_stats_rfc[4], train_stats_nn[4]]
+        }
+
+        # The column names
+        metrics = ["K-Nearest Neighbor", "Support Vector Machine", "Decision Tree", "Random Forest", "Neural Network"]
+
+        # Creating the DataFrame
+        df_train = pd.DataFrame(data_train, index=metrics)
+
+        st.subheader("Model performance heatmap!")
+        st.markdown("### Traning set")
+        st.write("This heatmap represents the performance of different models on various metrics for training set.")
+
+        # Create the heatmap
+        fig, ax = plt.subplots()
+        heatmap_train = sns.heatmap(df_train, annot=True, cmap="YlGnBu", ax=ax, vmin=0, vmax=1)
+        #heatmap_train.figure.colorbar(heatmap_train.collections[0], label='Score')
+        st.pyplot(fig)
+
+
+        ## Creating a DataFrame by merging these lists (test sets)
+        data_valid = {
+            "Accuracy": [valid_stats_knn[0], valid_stats_svm[0], valid_stats_dtc[0], valid_stats_rfc[0], valid_stats_nn[0]],
+            "Precision": [valid_stats_knn[1], valid_stats_svm[1], valid_stats_dtc[1], valid_stats_rfc[1], valid_stats_nn[1]],
+            "Recall": [valid_stats_knn[2], valid_stats_svm[2], valid_stats_dtc[2], valid_stats_rfc[2], valid_stats_nn[2]],
+            "F1 Score": [valid_stats_knn[3], valid_stats_svm[3], valid_stats_dtc[3], valid_stats_rfc[3], valid_stats_nn[3]],
+            "MCC": [valid_stats_knn[4], valid_stats_svm[4], valid_stats_dtc[4], valid_stats_rfc[4], valid_stats_nn[4]]
+        }
+
+        # Creating the DataFrame
+        df_valid = pd.DataFrame(data_valid, index=metrics)
+        st.markdown("### Validation set")
+        st.write("This heatmap represents the performance of different models on various metrics for testing set.")
+
+        # Create the heatmap
+        fig, ax = plt.subplots()
+        heatmap_valid = sns.heatmap(df_valid, annot=True, cmap="YlGnBu", ax=ax, vmin=0, vmax=1)
+        #heatmap_valid.figure.colorbar(heatmap_valid.collections[0], label='Score')
+        st.pyplot(fig)
+
+
+        st.subheader('Download all excel files and report!')
+        st.subheader(' ')
+        counts_S = without_NA_y_S.value_counts().tolist()
+        column_names_list = X_df_2_S.columns
+        output_str_S = ",\n".join(column_names_list)  
+        split_S_train = 1 - split_S
+
+        # Function to generate a PDF report
+        def generate_report_summary():
+
+            doc = SimpleDocTemplate("Summary_report.pdf", pagesize=letter)
+            story = []
+
+            # Header
+            styles = getSampleStyleSheet()
+            story.append(Paragraph("Model Evaluation Report - 5 methods", styles["Title"]))
+            story.append(Spacer(1, 12))
+
+            # Data
+            story.append(Paragraph("Dataset", styles["Heading3"]))
+            story.append(Paragraph(f"Objects: {X_df_2_S.shape[0]}", styles["Normal"]))
+            story.append(Paragraph(f"Descriptors: {X_df_2_S.shape[1]}", styles["Normal"]))
+            story.append(Paragraph(f"Classes: Negative ({counts_S[0]}), Positive ({counts_S[1]})", styles["Normal"]))
+            story.append(Paragraph(f"Descriptors - names: {output_str_S}", styles["Normal"]))
+            story.append(Spacer(1, 12))
+            
+            # Best hyperparameters
+            story.append(Paragraph("The best hyperparameters", styles["Heading3"]))
+            story.append(Paragraph(f"K-Nearest Neighbor: {grid_search_KNN.best_params_}", styles["Normal"]))
+            story.append(Paragraph(f"Support Vector Machine: {grid_search_SVM.best_params_}", styles["Normal"]))
+            story.append(Paragraph(f"Decision Tree: {grid_search_DTC.best_params_}", styles["Normal"]))
+            story.append(Paragraph(f"Random Forest: {grid_search_RFC.best_params_}", styles["Normal"]))
+            story.append(Paragraph(f"Neural Network: {grid_search_NN.best_params_}", styles["Normal"]))
+
+            story.append(Spacer(1, 12))
+
+            # Heatmaps
+            story.append(Paragraph("Scores Heatmap", styles["Heading3"]))
+            fig, ax = plt.subplots(nrows=1, ncols=2)
+            heatmap_valid = sns.heatmap(df_valid, annot=True, ax=ax[0], vmin=-1, vmax=1)
+            ax[0].set_title('Scores for training set')
+
+            heatmap_train = sns.heatmap(df_train, annot=True, ax=ax[1], vmin=-1, vmax=1)
+            ax[1].set_title('Scores for validation set')
+
+            buffer = BytesIO()
+            plt.savefig(buffer, format="png")
+            plt.close(fig)
+
+            buffer.seek(0)
+            img = buffer.read()
+            buffer.close()
+            story.append(Image(BytesIO(img), 500, 200))
+            story.append(Spacer(1, 12))
+            doc.build(story)
+
+
+        # Generate and download report
+        generate_report_summary()
+
+        ## Download generated report
+        st.download_button(
+            label="Download Report",
+            data=open("Summary_report.pdf", "rb").read(),
+            file_name="Summary_report.pdf",
+            mime='application/pdf',
+            key="button_report_Summary"
+        )
+
+
+        # Download excel file
+        excel_buffer = BytesIO()
+        excel_files = download_excel_files(excel_buffer, df, without_NA_S, all_df_S, train_set_S, valid_set_S, train_scaled_S_df, valid_scaled_S_df)
+        st.download_button(
+            label='Download Excel',
+            data=excel_buffer,
+            file_name='Summary_excel.xlsx',
+            mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            key="button_excel_Summary"
+        )
+
+
 
 
 ## MAIN FUNCTION
 
 st.sidebar.header("Choose your goal")
-tabs = ["📊 Data Preprocessing", "🔎 Principal Component Analysis (PCA)", "🏘️ K-Nearest Neighbour (KNN)", "🎰 Support Vector Machine (SVM)", "🌱 Decision Tree", "🌳 Random Forest", "🕸️ Neural Network"]
+tabs = ["📊 Data Preprocessing", "🔎 Principal Component Analysis (PCA)", "🏘️ K-Nearest Neighbour (KNN)", "🎰 Support Vector Machine (SVM)", "🌱 Decision Tree", "🌳 Random Forest", "🕸️ Neural Network", "👨‍👩‍👦 Summary"]
 active_tab = st.sidebar.selectbox("Select a tab:", tabs)  # Let the user choose the active tab
 
 st.sidebar.markdown("----")
@@ -2711,6 +3120,9 @@ if uploaded_file is not None:
     elif active_tab == "🕸️ Neural Network":
         nn_tab()
 
+    elif active_tab == "👨‍👩‍👦 Summary":
+        summary()
+
 
 #------ ELSE ------#
 else:
@@ -2745,7 +3157,12 @@ else:
         st.markdown('##### Make a predictive model using the RFC method')
         st.markdown("Submit your data in the left section to see what the data looks like!")
 
-    else:
+    elif active_tab == "🕸️ Neural Network": 
         st.title("🕸️ Neural Network (NN)")
         st.markdown('##### Make a predictive model using the NN method')
+        st.markdown("Submit your data in the left section to see what the data looks like!")
+
+    else:
+        st.title("👨‍👩‍👦 Summary")
+        st.markdown('##### Make a predictive models using all 5 methods and compare all of them')
         st.markdown("Submit your data in the left section to see what the data looks like!")
