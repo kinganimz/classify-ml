@@ -894,6 +894,47 @@ def knn_tab():
         else:
             st.subheader('Choose your new data to predict property/activity!')
 
+        st.subheader(" ")
+        st.subheader("Applicability Domain - PCA boundary box")
+
+        pca_AD = PCA()
+        pca_AD.fit(X_train_KNN_std)
+        pca_data_KNN_AD = pca_AD.transform(X_train_KNN_std)
+
+        pca_AD_test = PCA()
+        pca_AD_test.fit(X_test_KNN_std)
+        pca_data_KNN_AD_test = pca_AD.transform(X_test_KNN_std)
+
+        # Make plot here from PC1 and PC2 scores
+        # Take max and min value from PC1 and PC2 
+        # Make a gray lines
+
+        scores_KNN_AD = pd.DataFrame(pca_data_KNN_AD, columns=train_scaled_KNN_df.columns, index=train_scaled_KNN_df.index)
+        scores_KNN_AD_test = pd.DataFrame(pca_data_KNN_AD_test, columns=valid_scaled_KNN_df.columns, index=valid_scaled_KNN_df.index)
+
+
+        # Minimum and maximum values
+
+        min_KNN_PC1 = scores_KNN_AD.iloc[:,0].min()
+        max_KNN_PC1 = scores_KNN_AD.iloc[:,0].max()
+
+        min_KNN_PC2 = scores_KNN_AD.iloc[:,1].min()
+        max_KNN_PC2 = scores_KNN_AD.iloc[:,1].max()
+
+        fig, ax = plt.subplots()
+        sns.set_style("whitegrid")
+        sns.scatterplot(x=scores_KNN_AD.iloc[:,0], y=scores_KNN_AD.iloc[:,1], ax=ax, c='lightblue', edgecolor='gray', marker="s", s=50, alpha=0.7)
+        sns.scatterplot(x=scores_KNN_AD_test.iloc[:,0], y=scores_KNN_AD_test.iloc[:,1], ax=ax, c='lightgreen', edgecolor='gray', s=60, alpha=0.7)
+        plt.axvline(min_KNN_PC1, c='gray', linestyle='--')
+        plt.axvline(max_KNN_PC1, c='gray', linestyle='--')
+        plt.axhline(min_KNN_PC2, c='gray', linestyle='--')
+        plt.axhline(max_KNN_PC2, c='gray', linestyle='--')
+        plt.xlabel("PC1", fontsize=12)
+        plt.ylabel("PC2", fontsize=12)
+        plt.legend(['Training set', 'Validation set'], loc='center left', bbox_to_anchor=(1.0, 0.5))
+        st.pyplot(fig)
+        
+
 
 # Support Vector Machine (SVM) function
 def svm_tab():
