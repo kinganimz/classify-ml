@@ -87,9 +87,9 @@ def standardize_data(X_train, X_test):
 # Function to generate model statistics
 def generate_model_statistics(y_true, y_pred):
     accuracy = metrics.accuracy_score(y_true, y_pred)
-    precision = metrics.precision_score(y_true, y_pred)
-    recall = metrics.recall_score(y_true, y_pred)
-    f1_score = metrics.f1_score(y_true, y_pred)
+    precision = metrics.precision_score(y_true, y_pred, average='weighted')
+    recall = metrics.recall_score(y_true, y_pred, average='weighted')
+    f1_score = metrics.f1_score(y_true, y_pred, average='weighted')
     matthews_corrcoef = metrics.matthews_corrcoef(y_true, y_pred)
     result_list = [accuracy, precision, recall, f1_score, matthews_corrcoef]
     return result_list
@@ -889,6 +889,49 @@ def knn_tab():
 
         else:
             st.subheader('Choose your new data to predict property/activity!')
+
+
+        st.subheader(" ")
+        st.subheader("Applicability Domain - PCA boundary box")
+
+        pca_AD = PCA()
+        pca_AD.fit(X_train_KNN_std)
+        pca_data_KNN_AD = pca_AD.transform(X_train_KNN_std)
+
+        pca_AD_test = PCA()
+        pca_AD_test.fit(X_test_KNN_std)
+        pca_data_KNN_AD_test = pca_AD.transform(X_test_KNN_std)
+
+        # Make plot here from PC1 and PC2 scores
+        # Take max and min value from PC1 and PC2 
+        # Make a gray lines
+
+        scores_KNN_AD = pd.DataFrame(pca_data_KNN_AD, columns=train_scaled_KNN_df.columns, index=train_scaled_KNN_df.index)
+        scores_KNN_AD_test = pd.DataFrame(pca_data_KNN_AD_test, columns=valid_scaled_KNN_df.columns, index=valid_scaled_KNN_df.index)
+
+
+        # Minimum and maximum values
+
+        min_KNN_PC1 = scores_KNN_AD.iloc[:,0].min()
+        max_KNN_PC1 = scores_KNN_AD.iloc[:,0].max()
+
+        min_KNN_PC2 = scores_KNN_AD.iloc[:,1].min()
+        max_KNN_PC2 = scores_KNN_AD.iloc[:,1].max()
+
+        fig, ax = plt.subplots()
+        sns.set_style("whitegrid")
+        sns.scatterplot(x=scores_KNN_AD.iloc[:,0], y=scores_KNN_AD.iloc[:,1], ax=ax, c='lightblue', edgecolor='gray', marker="s", s=50, alpha=0.7)
+        sns.scatterplot(x=scores_KNN_AD_test.iloc[:,0], y=scores_KNN_AD_test.iloc[:,1], ax=ax, c='lightgreen', edgecolor='gray', s=60, alpha=0.7)
+        plt.axvline(min_KNN_PC1, c='gray', linestyle='--')
+        plt.axvline(max_KNN_PC1, c='gray', linestyle='--')
+        plt.axhline(min_KNN_PC2, c='gray', linestyle='--')
+        plt.axhline(max_KNN_PC2, c='gray', linestyle='--')
+        plt.xlabel("PC1", fontsize=12)
+        plt.ylabel("PC2", fontsize=12)
+        plt.legend(['Training set', 'Validation set'], loc='center left', bbox_to_anchor=(1.0, 0.5))
+        st.pyplot(fig)
+        
+
 
 
 # Support Vector Machine (SVM) function
@@ -2123,6 +2166,87 @@ def rfc_tab():
             key="button_excel_RFC"
         )
 
+        # ADD SECTION FOR NEXT PREDICTIONS USED CREATED MODEL!
+
+        st.subheader(" ")
+        st.subheader("Use your new model for new dataset!")
+
+        new_data = st.file_uploader("Upload your data here...", type=['xlsx'])
+
+        if new_data is not None:
+            # Read the uploaded file into a DataFrame
+            if new_data.type == "text/csv":
+                df_uploaded = pd.read_csv(new_data)
+            elif new_data.type == "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet":
+                df_uploaded = pd.read_excel(new_data)
+            else:
+                st.error("Unsupported file format")
+
+            # Choose variables
+            st.markdown('#### Choose variables to create your new data!')
+            # X variables
+            X_rfc_new = st.multiselect('Select descriptors to build the model:', df_uploaded.columns, key="x_multiselect_rfc_new")
+
+            # Validate X_rfc_new before using it
+            if X_rfc_new:
+                # Combine selected variables
+                df_rfc_new = pd.DataFrame(df_uploaded[X_rfc_new])
+                st.markdown('##### The dataset created by you:')
+                st.write(df_rfc_new)
+            else:
+                st.write("Please select descriptors to build the model.")
+
+            # Removing NA values
+            new_data_rfc = df_rfc_new.dropna(axis=0, how="any")
+            st.markdown(" ")
+            st.markdown('##### Your dataset after removing NA values looks like this:')
+
+            if st.button('View dataset', key='button_na_new_rfc'):
+                st.write(new_data_rfc)
+            else:
+                st.write(' ')
+
+
+            # Categorical variables
+            st.subheader('Categorical variables converting')
+            cat_variables_new_rfc = st.multiselect('Choose categorical variable(s) to separate descriptors:', new_data_rfc.columns, key="cat_var_rfc_new")
+
+            if cat_variables_new_rfc:
+                new_data_rfc = separate_categorical(new_data_rfc, cat_variables_new_rfc)
+                st.markdown(" ")
+                st.markdown('##### Your dataset with categorical variables separated looks like this:')
+                st.write(new_data_rfc)
+            else:
+                st.markdown('##### You have not selected any categorical variable to separate. Your dataset remains unchanged:')
+                new_data_rfc = new_data_rfc
+                st.write(new_data_rfc)
+
+                # Instead of error, show messages below  
+            if not X_rfc_new:
+                st.warning("Please select descriptors to build the model.")
+                execute_rfc = False
+            elif not all(new_data_rfc.dtypes.apply(lambda x: np.issubdtype(x, np.number) or np.issubdtype(x, np.bool_))):
+                st.warning("Ensure all selected descriptors are either in numeric or boolean format.")
+                execute_rfc = False
+
+            if execute_rfc:
+                # Standardization
+                st.subheader("Standardize your data")
+                st.markdown("Standardize the data for better model performance.")
+                scaler = StandardScaler()
+                new_data_scaled_rfc = scaler.fit_transform(new_data_rfc)
+
+                st.markdown("##### Training Set (Standardized)")
+                new_data_scaled_df_rfc = pd.DataFrame(new_data_scaled_rfc)
+                st.write(new_data_scaled_df_rfc)
+
+                st.subheader("Check your predictions!")
+                predictions_rfc = rfc.predict(new_data_scaled_df_rfc)
+                st.write(predictions_rfc)
+
+        else:
+            st.subheader('Choose your new data to predict property/activity!')
+
 
         st.subheader(" ")
         st.subheader("Use your new model for new dataset!")
@@ -2647,6 +2771,7 @@ def nn_tab():
 
         else:
             st.subheader('Choose your new data to predict property/activity!')
+
 
 def summary():
 
