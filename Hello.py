@@ -87,9 +87,9 @@ def standardize_data(X_train, X_test):
 # Function to generate model statistics
 def generate_model_statistics(y_true, y_pred):
     accuracy = metrics.accuracy_score(y_true, y_pred)
-    precision = metrics.precision_score(y_true, y_pred, average='weighted')
-    recall = metrics.recall_score(y_true, y_pred, average='weighted')
-    f1_score = metrics.f1_score(y_true, y_pred, average='weighted')
+    precision = metrics.precision_score(y_true, y_pred)
+    recall = metrics.recall_score(y_true, y_pred)
+    f1_score = metrics.f1_score(y_true, y_pred)
     matthews_corrcoef = metrics.matthews_corrcoef(y_true, y_pred)
     result_list = [accuracy, precision, recall, f1_score, matthews_corrcoef]
     return result_list
@@ -502,7 +502,6 @@ def knn_tab():
     else:
         st.write(' ')
 
-    # Usuwamy wybrane kolumny 'X' i 'y' z całego zbioru danych 'without_NA'
     without_NA_X_KNN = without_NA_KNN.drop(columns=y_KNN)
     without_NA_y_KNN = without_NA_KNN.drop(columns=X_KNN)
 
@@ -925,7 +924,6 @@ def svm_tab():
     else:
         st.write(' ')
 
-    # Usuwamy wybrane kolumny 'X' i 'y' z całego zbioru danych 'without_NA'
     without_NA_X_SVM = without_NA_SVM.drop(columns=y_SVM)
     without_NA_y_SVM = without_NA_SVM.drop(columns=X_SVM)
 
@@ -1346,7 +1344,6 @@ def dtc_tab():
     else:
         st.write(' ')
 
-    # Usuwamy wybrane kolumny 'X' i 'y' z całego zbioru danych 'without_NA'
     without_NA_X_DTC = without_NA_DTC.drop(columns=y_DTC)
     without_NA_y_DTC = without_NA_DTC[y_DTC]
 
@@ -1791,7 +1788,6 @@ def rfc_tab():
     else:
         st.write(' ')
 
-    # Usuwamy wybrane kolumny 'X' i 'y' z całego zbioru danych 'without_NA'
     without_NA_X_RFC = without_NA_RFC.drop(columns=y_RFC)
     without_NA_y_RFC = without_NA_RFC[y_RFC]
 
@@ -2242,7 +2238,6 @@ def nn_tab():
     else:
         st.write(' ')
 
-    # Usuwamy wybrane kolumny 'X' i 'y' z całego zbioru danych 'without_NA'
     without_NA_X_NN = without_NA_NN.drop(columns=y_NN)
     without_NA_y_NN = without_NA_NN[y_NN]
 
@@ -2686,7 +2681,6 @@ def summary():
     else:
         st.write(' ')
 
-    # Usuwamy wybrane kolumny 'X' i 'y' z całego zbioru danych 'without_NA'
     without_NA_X_S = without_NA_S.drop(columns=y_S)
     without_NA_y_S = without_NA_S[y_S]
 
