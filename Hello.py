@@ -34,7 +34,7 @@ from sklearn.tree import DecisionTreeClassifier
 from sklearn.ensemble import RandomForestClassifier
 import tensorflow as tf
 from tensorflow import keras
-from keras.wrappers.scikit_learn import KerasClassifier
+from scikeras.wrappers import KerasClassifier
 from keras.layers import Dense
 from sklearn.svm import SVC
 from sklearn import metrics
