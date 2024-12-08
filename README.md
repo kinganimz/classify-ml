@@ -1,4 +1,5 @@
-# ClassiFy ML
+![classifyml-logo](https://github.com/user-attachments/assets/e5d8399d-e1d9-4011-bf75-924c9a62c343)
+
 ### Your go-to app for seamless data analysis and powerful ML classification, all in one place!
 
 The web application was developed using the `streamlit` package and allows to perform data analysis along with the creation of predictive classification models using machine learning methods, such as:
