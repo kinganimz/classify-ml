@@ -1,4 +1,4 @@
-![classifyml-logo](https://github.com/user-attachments/assets/e5d8399d-e1d9-4011-bf75-924c9a62c343)
+## ![classifyml-logo](https://github.com/user-attachments/assets/e5d8399d-e1d9-4011-bf75-924c9a62c343)
 
 ### Your go-to app for seamless data analysis and powerful ML classification, all in one place!
 
