@@ -1,5 +1,5 @@
 # ClassiFy ML
-## Your go-to app for seamless data analysis and powerful ML classification, all in one place!
+### Your go-to app for seamless data analysis and powerful ML classification, all in one place!
 
 The web application was developed using the `streamlit` package and allows to perform data analysis along with the creation of predictive classification models using machine learning methods, such as:
 - **K Nearest Neighbors**
