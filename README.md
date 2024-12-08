@@ -12,4 +12,4 @@ Importantly, the application also includes two tabs responsible for the prelimin
 
 In addition, a score report is generated with all the sheets in .xlsx format so you can easily **download your results**!
 
-Check it out on 👉[Analyse your data!](https://classification-data-analysis.streamlit.app/)👈
+Check it out on 👉[Analyse your data!](https://classify-ml.streamlit.app/)👈
