@@ -14,7 +14,6 @@
 
 # PACKAGES
 
-
 import streamlit as st
 import pandas as pd
 import openpyxl
@@ -35,7 +34,7 @@ from sklearn.ensemble import RandomForestClassifier
 import tensorflow as tf
 from tensorflow import keras
 from scikeras.wrappers import KerasClassifier
-from keras.layers import Dense
+#from keras.layers import Dense
 from sklearn.svm import SVC
 from sklearn import metrics
 from sklearn.preprocessing import scale
@@ -72,7 +71,6 @@ def split_data(X, y, method, split):
     if method == "Scikit-learn (random)":
         return tts(X, y, test_size=split, random_state=42)
     else:
-        from kennard_stone import train_test_split as ks
         return ks(X, y, test_size=split, random_state=42)
     
 # Function to standardize data
@@ -87,9 +85,9 @@ def standardize_data(X_train, X_test):
 # Function to generate model statistics
 def generate_model_statistics(y_true, y_pred):
     accuracy = metrics.accuracy_score(y_true, y_pred)
-    precision = metrics.precision_score(y_true, y_pred, average='weighted')
-    recall = metrics.recall_score(y_true, y_pred, average='weighted')
-    f1_score = metrics.f1_score(y_true, y_pred, average='weighted')
+    precision = metrics.precision_score(y_true, y_pred)
+    recall = metrics.recall_score(y_true, y_pred)
+    f1_score = metrics.f1_score(y_true, y_pred)
     matthews_corrcoef = metrics.matthews_corrcoef(y_true, y_pred)
     result_list = [accuracy, precision, recall, f1_score, matthews_corrcoef]
     return result_list
@@ -138,6 +136,26 @@ def download_excel_files_PCA(excel_buffer, df, without_NA, all_df_cat, eigenvalu
         loadings.to_excel(writer, sheet_name="loadings", index=False)
 
 
+def welcome_tab():
+    st.title('ClassiFy ML – Simplify Your Data Analysis and ML Modeling! 🚀')
+    st.markdown('##### ClassiFy ML is your all-in-one solution for seamless data analysis and machine learning classification.')
+    st.markdown("Developed with Streamlit, this intuitive web app empowers you to explore data effortlessly and create predictive models using methods like: K Nearest Neighbors, Support Vector Machine, Decision Tree, Random Forest, and Neural Network")
+    st.markdown("Uncover hidden patterns with Principal Component Analysis (PCA) and get insights in just a few clicks. Plus, generate a comprehensive score report in .xlsx format for easy download and sharing.")
+    st.markdown(" ")
+    st.image('WELCOME_CLASSIFYML.png', caption="ClassiFy ML features",use_column_width=True)
+    st.markdown(" ")
+    st.markdown('#### Take your data analysis to the next level with ClassiFy ML! 🚀')
+    st.markdown("**I’d love to hear your thoughts!** 💬")
+    st.markdown("_Your feedback is invaluable and will help improve and expand ClassiFy ML. Feel free to share any suggestions or ideas for enhancing the app!_")
+    st.markdown(" ")
+    st.markdown("""
+    <a href="https://github.com/kinganimz" target="_blank">
+        <img src="https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png" width="30">
+        kinganimz
+    </a>
+    """, unsafe_allow_html=True)
+
+    
 def data_preprocessing_tab():
     st.title('Data preprocessing')
     st.markdown('##### Explore the dataset chosen by you and check how it presents')
@@ -278,7 +296,6 @@ def pca_tab():
         scores = pd.DataFrame(pca_data, index=df_2_PCA.index, columns=labels)
 
         # Plot
-        plt.style.use('seaborn-whitegrid')
         csfont = {'fontname':'Trebuchet MS'}
         hfont = {'fontname':'Verdana'}
 
@@ -286,10 +303,11 @@ def pca_tab():
         pps = ax.bar(x=range(1, len(per_var) + 1), height=per_var, tick_label=labels, color='lightblue')
 
         ax.set_xticks(range(1, len(per_var) + 1))
-        ax.set_xticklabels(labels, fontsize=12, **hfont)
-        ax.set_yticklabels(ax.get_yticks(), fontsize=14, **hfont)
-        ax.set_ylabel("Explained Variance [%]", fontsize=18, **csfont, labelpad=20)
-        ax.set_xlabel("Principal Components", fontsize=18, **csfont, labelpad=20)
+        ax.set_xticklabels(labels, fontsize=20, **hfont)
+        ax.set_yticklabels(ax.get_yticks(), fontsize=20, **hfont)
+        ax.set_ylabel("Explained Variance [%]", fontsize=24, **csfont, labelpad=20)
+        ax.set_xlabel("Principal Components", fontsize=24, **csfont, labelpad=20)
+        sns.set_style("whitegrid")
         st.pyplot(fig)
 
         # Eigenvalues table
@@ -301,9 +319,9 @@ def pca_tab():
         # Correlation matrix
         st.markdown("##### Correlation Heatmap")
 
-        plt.figure(figsize=(14, 12))
+        plt.figure(figsize=(8, 6))
         heatmap = sns.heatmap(df_std.corr(), vmin=-1, vmax=1, annot=True, cmap='Blues_r')
-        heatmap.set_title('Correlation matrix', fontdict={'fontsize': 25}, pad=14)
+        heatmap.set_title('Correlation matrix', fontdict={'fontsize': 16}, pad=14)
         plt.xticks(rotation=55, ha='right', rotation_mode='anchor', fontsize=12)
         plt.yticks(fontsize=12)
 
@@ -314,31 +332,67 @@ def pca_tab():
 
         # Calculate the loadings values
         loadings = pca.components_
-        num_pc = pca.n_features_
+        num_pc = loadings.shape[0]
         pc_list = ["PC"+str(i) for i in list(range(1, num_pc+1))]
-        loadings_df = pd.DataFrame.from_dict(dict(zip(pc_list, loadings)))
-        loadings_df['Variables'] = df_2_PCA.columns.values
+        loadings_df = pd.DataFrame(loadings, index=pc_list)  # Create DataFrame with PC names as row indices
+        loadings_df = loadings_df.T  # Transpose to have variables as rows and PCs as columns
+        loadings_df['Variables'] = df_2_PCA.columns.values  # Add column names from original data
         loadings_df = loadings_df.set_index('Variables')
+        #loadings_df = pd.DataFrame.from_dict(dict(zip(pc_list, loadings)))
+        #loadings_df['Variables'] = df_2_PCA.columns.values
+        #loadings_df = loadings_df.set_index('Variables')
         st.write(loadings_df)
 
 
         # Factor loadings plot
-        plt.figure(figsize=(45, 12))
+        sns.set_style("whitegrid")
         csfont = {'fontname': 'Trebuchet MS'}
         hfont = {'fontname': 'Verdana'}
 
-        # X variables
-        PCs_choice = st.multiselect('Choose what PCs you want to see:', loadings_df.columns, key="PCs_choice")
+        col1, col2 = st.columns(2)
+        with col1: 
+            PCs_choice = st.multiselect('Choose what PCs you want to see:', loadings_df.columns, key="PCs_choice")
+        with col2:
+            col_num = (st.slider("Choose number of column to show PCs loadings below:", min_value=1, max_value=4, key="col_num"))
 
-        plt.plot(loadings_df.loc[:, PCs_choice])
-        plt.xticks(rotation=50, ha='right', rotation_mode='anchor', fontsize=20, **csfont)
-        plt.yticks(fontsize=20, **csfont)
-        plt.xlabel("Variables", fontsize=30, **csfont)
-        plt.ylabel("Loadings", fontsize=30, **csfont, labelpad=20)
-        plt.legend(loadings_df.columns, loc='center left', bbox_to_anchor=(1.0, 0.5))
-        plt.axhline(-0.7, c='gray', linestyle='--')
-        plt.axhline(0.7, c='gray', linestyle='--')
-        st.pyplot(plt)
+        if len(PCs_choice) > 0:
+            n_plots = len(PCs_choice)
+            ncols = col_num
+            nrows = int(np.ceil(n_plots / ncols))
+
+            fig, axes = plt.subplots(nrows, ncols, figsize=(20, 5 * nrows))
+            axes = axes.flatten()
+
+            for i, pc in enumerate(PCs_choice):
+                selected_data = loadings_df[[pc]]              
+                selected_data['Color'] = np.where((selected_data[pc] >= 0.7) | (selected_data[pc] <= -0.7), '#8FBC8F', 'lightgray')
+
+                sns.barplot(
+                    x=selected_data[pc], 
+                    y=selected_data.index, 
+                    data=selected_data, 
+                    palette=selected_data['Color'].to_list(), 
+                    ax=axes[i], 
+                    orient='h'
+                )
+                
+                axes[i].set_title(f"Loadings for {pc}", fontsize=20, **csfont)
+                axes[i].set_xlabel("Loadings", fontsize=18, **csfont)
+                axes[i].set_ylabel(" ", fontsize=18, **csfont)
+                axes[i].tick_params(axis='both', labelsize=16)
+
+                min_val = -1.0
+                max_val = 1.0
+                limit = max(abs(min_val), abs(max_val)) * 1.1
+                axes[i].set_xlim(-limit, limit)
+                axes[i].axvline(-0.7, c='gray', linestyle='--')
+                axes[i].axvline(0.7, c='gray', linestyle='--')
+
+
+            plt.tight_layout()
+            st.pyplot(fig)
+        else:
+            st.write("Please select at least one principal component to display.")
 
         # Biplot
         st.subheader('Explore the principal components space')
@@ -350,12 +404,14 @@ def pca_tab():
             y_ax = st.selectbox('Select the PC as the y axis:', scores.columns)
 
         with col2:
-            color_pca = st.selectbox('Select the variable by which you want to color the objects:', df_2_PCA.columns, key='color_PCA')
-            size_pca = st.selectbox('Select the variable by which you want to assign the objects:', df_2_PCA.columns, key='size_PCA')
+            color_pca = st.selectbox('Select the variable by which you want to color the objects:', df.columns, key='color_PCA')
+            size_pca = st.selectbox('Select the variable by which you want to assign the objects:', df.columns, key='size_PCA')
 
         fig, ax = plt.subplots()
-        sns.scatterplot(x=scores[x_ax], y=scores[y_ax], ax=ax, hue=df_2_PCA[color_pca], size=df_2_PCA[size_pca])
+        sns.scatterplot(x=scores[x_ax], y=scores[y_ax], ax=ax, hue=df[color_pca], size=df[size_pca], alpha=0.6, edgecolor='black', linewidth=0.5)
         sns.set_style("whitegrid")
+        plt.xlabel(f"{x_ax}, explained variance: {explained_var.iloc[0,0]}%") # Change it
+        plt.ylabel(f"{y_ax}, explained variance: {explained_var.iloc[1,0]}%") # Change it
         plt.axhline(0.0, c='gray', linestyle='--')
         plt.axvline(0.0, c='gray', linestyle='--')
         plt.legend(loc='center left', bbox_to_anchor=(1.0, 0.5))
@@ -363,7 +419,7 @@ def pca_tab():
 
         
         st.subheader('Download all excel files and report!')
-            # Function to generate a PDF report
+        # Function to generate a PDF report
         def generate_report_PCA():
             doc = SimpleDocTemplate("PCA_report.pdf", pagesize=letter)
             story = []
@@ -381,7 +437,7 @@ def pca_tab():
             plt.xlabel("Principal Components")
             plt.ylabel("Explained Variance [%]")
             plt.title("Scree Plot")
-            plt.savefig(img_buffer, format="png")
+            plt.savefig(img_buffer, format="png", dpi=300)
             plt.close()
             img_buffer.seek(0)
             img = Image(img_buffer, width=500, height=300)
@@ -394,7 +450,7 @@ def pca_tab():
             plt.figure(figsize=(8, 6))
             sns.heatmap(df_std.corr(), vmin=-1, vmax=1, annot=True, cmap='Blues_r')
             plt.title("Correlation Heatmap")
-            plt.savefig(img_buffer, format="png")
+            plt.savefig(img_buffer, format="png", dpi=300)
             plt.close()
             img_buffer.seek(0)
             img = Image(img_buffer, width=450, height=350)
@@ -414,7 +470,7 @@ def pca_tab():
             plt.axhline(0.7, c='gray', linestyle='--')
             plt.xticks(rotation=45, ha='right')
             plt.tight_layout()
-            plt.savefig(img_buffer, format="png")
+            plt.savefig(img_buffer, format="png", dpi=300)
             plt.close()
             img_buffer.seek(0)
             img = Image(img_buffer, width=450, height=300)
@@ -425,14 +481,14 @@ def pca_tab():
             story.append(Paragraph("Biplot", styles["Heading3"]))
             img_buffer = BytesIO()
             fig, ax = plt.subplots()
-            sns.scatterplot(x=scores[x_ax], y=scores[y_ax], ax=ax, hue=df_2_PCA[color_pca], size=df_2_PCA[size_pca])
+            sns.scatterplot(x=scores[x_ax], y=scores[y_ax], ax=ax, hue=df[color_pca], size=df[size_pca], alpha=0.6, edgecolor='black', linewidth=0.5)
             sns.set_style("whitegrid")
             plt.legend(loc='center left', bbox_to_anchor=(1.0, 0.5))
             plt.axhline(0.0, c='gray', linestyle='--')
             plt.axvline(0.0, c='gray', linestyle='--')
             plt.title("Biplot")
             plt.tight_layout()
-            plt.savefig(img_buffer, format="png")
+            plt.savefig(img_buffer, format="png", dpi=300)
             plt.close()
             img_buffer.seek(0)
             img = Image(img_buffer, width=450, height=330)
@@ -581,14 +637,15 @@ def knn_tab():
         st.subheader("Standardize your data")
         st.markdown("Standardize the data for better model performance.")
         X_train_KNN_std, X_test_KNN_std = standardize_data(X_train_KNN, X_test_KNN)
-
-        st.markdown("##### Training Set (Standardized)")
-        train_scaled_KNN_df = pd.DataFrame(X_train_KNN_std)
-        st.write(train_scaled_KNN_df)
-
-        st.markdown("##### Validation Set (Standardized)")
-        valid_scaled_KNN_df = pd.DataFrame(X_test_KNN_std)
-        st.write(valid_scaled_KNN_df)
+        col1, col2 = st.columns(2)
+        with col1:
+            st.markdown("##### Training Set (Standardized)")
+            train_scaled_KNN_df = pd.DataFrame(X_train_KNN_std)
+            st.write(train_scaled_KNN_df)
+        with col2:
+            st.markdown("##### Validation Set (Standardized)")
+            valid_scaled_KNN_df = pd.DataFrame(X_test_KNN_std)
+            st.write(valid_scaled_KNN_df)
 
 
         # Select model hyperparameters (GridSearchCV or mannual)
@@ -747,7 +804,7 @@ def knn_tab():
             ax[1].set_title('Confusion matrix for validation set')
 
             buffer = BytesIO()
-            plt.savefig(buffer, format="png")
+            plt.savefig(buffer, format="png", dpi=300)
             plt.close(fig)
 
             buffer.seek(0)
@@ -809,7 +866,7 @@ def knn_tab():
             key="button_excel_KNN"
         )
 
-# ADD SECTION FOR NEXT PREDICTIONS USED CREATED MODEL!
+        # ADD SECTION FOR NEXT PREDICTIONS USED CREATED MODEL!
 
         st.subheader(" ")
         st.subheader("Use your new model for new dataset!")
@@ -888,7 +945,7 @@ def knn_tab():
                 st.write(predictions_knn)
 
         else:
-            st.subheader('Choose your new data to predict property/activity!')
+            st.markdown(' ')
 
 
         st.subheader(" ")
@@ -920,8 +977,8 @@ def knn_tab():
 
         fig, ax = plt.subplots()
         sns.set_style("whitegrid")
-        sns.scatterplot(x=scores_KNN_AD.iloc[:,0], y=scores_KNN_AD.iloc[:,1], ax=ax, c='lightblue', edgecolor='gray', marker="s", s=50, alpha=0.7)
-        sns.scatterplot(x=scores_KNN_AD_test.iloc[:,0], y=scores_KNN_AD_test.iloc[:,1], ax=ax, c='lightgreen', edgecolor='gray', s=60, alpha=0.7)
+        sns.scatterplot(x=scores_KNN_AD.iloc[:,0], y=scores_KNN_AD.iloc[:,1], ax=ax, c='steelblue',  marker="o", s=85, alpha=0.60)
+        sns.scatterplot(x=scores_KNN_AD_test.iloc[:,0], y=scores_KNN_AD_test.iloc[:,1], ax=ax, c='darkseagreen', marker="s", s=85, alpha=0.60)
         plt.axvline(min_KNN_PC1, c='gray', linestyle='--')
         plt.axvline(max_KNN_PC1, c='gray', linestyle='--')
         plt.axhline(min_KNN_PC2, c='gray', linestyle='--')
@@ -929,6 +986,7 @@ def knn_tab():
         plt.xlabel("PC1", fontsize=12)
         plt.ylabel("PC2", fontsize=12)
         plt.legend(['Training set', 'Validation set'], loc='center left', bbox_to_anchor=(1.0, 0.5))
+        plt.grid(True)
         st.pyplot(fig)
         
 
@@ -1043,13 +1101,16 @@ def svm_tab():
         st.markdown("Standardize the data for better model performance.")
         X_train_SVM_std, X_test_SVM_std = standardize_data(X_train_SVM, X_test_SVM)
 
-        st.markdown("##### Training Set (Standardized)")
-        train_scaled_SVM_df = pd.DataFrame(X_train_SVM_std)
-        st.write(train_scaled_SVM_df)
+        col1, col2 = st.columns(2)
+        with col1:
+            st.markdown("##### Training Set (Standardized)")
+            train_scaled_SVM_df = pd.DataFrame(X_train_SVM_std)
+            st.write(train_scaled_SVM_df)
 
-        st.markdown("##### Validation Set (Standardized)")
-        valid_scaled_SVM_df = pd.DataFrame(X_test_SVM_std)
-        st.write(valid_scaled_SVM_df)
+        with col2:
+            st.markdown("##### Validation Set (Standardized)")
+            valid_scaled_SVM_df = pd.DataFrame(X_test_SVM_std)
+            st.write(valid_scaled_SVM_df)
 
 
         # Select model hyperparameters (GridSearchCV or mannual)
@@ -1207,7 +1268,7 @@ def svm_tab():
             ax[1].set_title('Confusion matrix for validation set')
 
             buffer = BytesIO()
-            plt.savefig(buffer, format="png")
+            plt.savefig(buffer, format="png", dpi=300)
             plt.close(fig)
 
             buffer.seek(0)
@@ -1352,7 +1413,7 @@ def svm_tab():
                 st.write(predictions_svc)
 
         else:
-            st.subheader('Choose your new data to predict property/activity!')
+            st.subheader(' ')
             
 # Decision Tree Classifier (DTC) Function
 def dtc_tab():
@@ -1464,13 +1525,16 @@ def dtc_tab():
         st.markdown("Standardize the data for better model performance.")
         X_train_DTC_std, X_test_DTC_std = standardize_data(X_train_DTC, X_test_DTC)
 
-        st.markdown("##### Training Set (Standardized)")
-        train_scaled_DTC_df = pd.DataFrame(X_train_DTC_std)
-        st.write(train_scaled_DTC_df)
+        col1, col2 = st.columns(2)
+        with col1:
+            st.markdown("##### Training Set (Standardized)")
+            train_scaled_DTC_df = pd.DataFrame(X_train_DTC_std)
+            st.write(train_scaled_DTC_df)
 
-        st.markdown("##### Validation Set (Standardized)")
-        valid_scaled_DTC_df = pd.DataFrame(X_test_DTC_std)
-        st.write(valid_scaled_DTC_df)
+        with col2:
+            st.markdown("##### Validation Set (Standardized)")
+            valid_scaled_DTC_df = pd.DataFrame(X_test_DTC_std)
+            st.write(valid_scaled_DTC_df)
 
 
         # Select model hyperparameters (GridSearchCV or mannual)
@@ -1583,7 +1647,7 @@ def dtc_tab():
         feature_names = X_train_DTC.columns.tolist()
         class_names = ["negative", "positive"]
         plot_tree(dtc, filled=True, feature_names=feature_names, class_names=class_names)
-        plt.savefig("decision_tree.png")
+        plt.savefig("decision_tree.png", dpi=300)
         plt.close(fig) 
         st.pyplot(fig)
 
@@ -1646,7 +1710,7 @@ def dtc_tab():
             ax[1].set_title('Confusion matrix for validation set')
 
             buffer = BytesIO()
-            plt.savefig(buffer, format="png")
+            plt.savefig(buffer, format="png", dpi=300)
             plt.close(fig)
 
             buffer.seek(0)
@@ -1795,7 +1859,7 @@ def dtc_tab():
                 st.write(predictions_dtc)
 
         else:
-            st.subheader('Choose your new data to predict property/activity!')
+            st.subheader(' ')
 
 # Random Forest Classifier (RFC) function
 def rfc_tab():
@@ -1908,13 +1972,16 @@ def rfc_tab():
         st.markdown("Standardize the data for better model performance.")
         X_train_RFC_std, X_test_RFC_std = standardize_data(X_train_RFC, X_test_RFC)
 
-        st.markdown("##### Training Set (Standardized)")
-        train_scaled_RFC_df = pd.DataFrame(X_train_RFC_std)
-        st.write(train_scaled_RFC_df)
+        col1, col2 = st.columns(2)
+        with col1:
+            st.markdown("##### Training Set (Standardized)")
+            train_scaled_RFC_df = pd.DataFrame(X_train_RFC_std)
+            st.write(train_scaled_RFC_df)
 
-        st.markdown("##### Validation Set (Standardized)")
-        valid_scaled_RFC_df = pd.DataFrame(X_test_RFC_std)
-        st.write(valid_scaled_RFC_df)
+        with col2:
+            st.markdown("##### Validation Set (Standardized)")
+            valid_scaled_RFC_df = pd.DataFrame(X_test_RFC_std)
+            st.write(valid_scaled_RFC_df)
 
 
         # Select model hyperparameters (GridSearchCV or mannual)
@@ -2081,7 +2148,7 @@ def rfc_tab():
             ax[1].set_title('Confusion matrix for validation set')
 
             buffer = BytesIO()
-            plt.savefig(buffer, format="png")
+            plt.savefig(buffer, format="png", dpi=300)
             plt.close(fig)
 
             buffer.seek(0)
@@ -2128,7 +2195,7 @@ def rfc_tab():
             plt.xticks(range(len(column_names)), column_names)
             plt.tight_layout()
             buffer = BytesIO()
-            plt.savefig(buffer, format="png")
+            plt.savefig(buffer, format="png",dpi=300)
             plt.close(fig)
             buffer.seek(0)
             img = buffer.read()
@@ -2236,13 +2303,16 @@ def rfc_tab():
                 scaler = StandardScaler()
                 new_data_scaled_rfc = scaler.fit_transform(new_data_rfc)
 
-                st.markdown("##### Training Set (Standardized)")
-                new_data_scaled_df_rfc = pd.DataFrame(new_data_scaled_rfc)
-                st.write(new_data_scaled_df_rfc)
+                col1, col2 = st.columns(2)
+                with col1:
+                    st.markdown("##### Training Set (Standardized)")
+                    new_data_scaled_df_rfc = pd.DataFrame(new_data_scaled_rfc)
+                    st.write(new_data_scaled_df_rfc)
 
-                st.subheader("Check your predictions!")
-                predictions_rfc = rfc.predict(new_data_scaled_df_rfc)
-                st.write(predictions_rfc)
+                with col2:
+                    st.subheader("Check your predictions!")
+                    predictions_rfc = rfc.predict(new_data_scaled_df_rfc)
+                    st.write(predictions_rfc)
 
         else:
             st.subheader('Choose your new data to predict property/activity!')
@@ -2325,7 +2395,7 @@ def rfc_tab():
                 st.write(predictions_rfc)
 
         else:
-            st.subheader('Choose your new data to predict property/activity!')
+            st.subheader(' ')
 
 
 # Neural Network (NN) function
@@ -2438,13 +2508,16 @@ def nn_tab():
         st.markdown("Standardize the data for better model performance.")
         X_train_NN_std, X_test_NN_std = standardize_data(X_train_NN, X_test_NN)
 
-        st.markdown("##### Training Set (Standardized)")
-        train_scaled_NN_df = pd.DataFrame(X_train_NN_std)
-        st.write(train_scaled_NN_df)
+        col1, col2 = st.columns(2)
+        with col1:
+            st.markdown("##### Training Set (Standardized)")
+            train_scaled_NN_df = pd.DataFrame(X_train_NN_std)
+            st.write(train_scaled_NN_df)
 
-        st.markdown("##### Validation Set (Standardized)")
-        valid_scaled_NN_df = pd.DataFrame(X_test_NN_std)
-        st.write(valid_scaled_NN_df)
+        with col2:
+            st.markdown("##### Validation Set (Standardized)")
+            valid_scaled_NN_df = pd.DataFrame(X_test_NN_std)
+            st.write(valid_scaled_NN_df)
 
 
         # Create a model!
@@ -2461,7 +2534,7 @@ def nn_tab():
             optimizer = st.radio('Choose a optimizer:', ('adam', 'sgd'), key="optimizer_NN")
 
 
-        def create_model(units, activation, kernel_initializer, loss, optimizer):
+        def create_model(units, activation, kernel_initializer):
 
             model = keras.Sequential([
                 keras.layers.Flatten(input_shape=(X_train_NN_std.shape[1],)),
@@ -2473,7 +2546,7 @@ def nn_tab():
             ])
         
             # compile the keras model
-            model.compile(loss=loss, optimizer=optimizer, metrics=['accuracy'])
+            model.compile(loss='binary_crossentropy', optimizer='adam', metrics=['accuracy'])
 
             return model
         
@@ -2511,7 +2584,7 @@ def nn_tab():
 
             # Decision Tree model by user
             model = KerasClassifier(build_fn=create_model, units=units, activation=activation,
-                                    kernel_initializer=kernel_initializer, loss=loss, optimizer=optimizer)
+                                    kernel_initializer=kernel_initializer)
             model.fit(X_train_NN_std, y_train_NN, batch_size=batch_size, epochs=epochs)
 
         # Predicted values
@@ -2629,7 +2702,7 @@ def nn_tab():
             ax[1].set_title('Confusion matrix for validation set')
 
             buffer = BytesIO()
-            plt.savefig(buffer, format="png")
+            plt.savefig(buffer, format="png", dpi=300)
             plt.close(fig)
 
             buffer.seek(0)
@@ -2761,16 +2834,19 @@ def nn_tab():
                 scaler = StandardScaler()
                 new_data_scaled_nn = scaler.fit_transform(new_data_nn)
 
-                st.markdown("##### Training Set (Standardized)")
-                new_data_scaled_df_nn = pd.DataFrame(new_data_scaled_nn)
-                st.write(new_data_scaled_df_nn)
+                col1, col2 = st.columns(2)
+                with col1:
+                    st.markdown("##### Training Set (Standardized)")
+                    new_data_scaled_df_nn = pd.DataFrame(new_data_scaled_nn)
+                    st.write(new_data_scaled_df_nn)
 
-                st.subheader("Check your predictions!")
-                predictions_nn = model.predict(new_data_scaled_df_nn)
-                st.write(predictions_nn)
+                with col2:
+                    st.subheader("Check your predictions!")
+                    predictions_nn = model.predict(new_data_scaled_df_nn)
+                    st.write(predictions_nn)
 
         else:
-            st.subheader('Choose your new data to predict property/activity!')
+            st.subheader(' ')
 
 
 def summary():
@@ -2882,13 +2958,16 @@ def summary():
         st.markdown("Standardize the data for better model performance.")
         X_train_S_std, X_test_S_std = standardize_data(X_train_S, X_test_S)
 
-        st.markdown("##### Training Set (Standardized)")
-        train_scaled_S_df = pd.DataFrame(X_train_S_std)
-        st.write(train_scaled_S_df)
+        col1, col2 = st.columns(2)
+        with col1:
+            st.markdown("##### Training Set (Standardized)")
+            train_scaled_S_df = pd.DataFrame(X_train_S_std)
+            st.write(train_scaled_S_df)
 
-        st.markdown("##### Validation Set (Standardized)")
-        valid_scaled_S_df = pd.DataFrame(X_test_S_std)
-        st.write(valid_scaled_S_df)
+        with col2:
+            st.markdown("##### Validation Set (Standardized)")
+            valid_scaled_S_df = pd.DataFrame(X_test_S_std)
+            st.write(valid_scaled_S_df)
 
 
 
@@ -2942,7 +3021,6 @@ def summary():
         # Statistics
         train_stats_svm = generate_model_statistics(y_train_S, y_pred_train_svm)
         valid_stats_svm = generate_model_statistics(y_test_S, y_pred_svm)
-
 
 
 
@@ -3015,7 +3093,7 @@ def summary():
             optimizer = st.radio('Choose a optimizer:', ('adam', 'sgd'), key="optimizer_NN")
 
 
-        def create_model(units, activation, kernel_initializer, loss, optimizer):
+        def create_model(units, activation, kernel_initializer):
 
             model = keras.Sequential([
                 keras.layers.Flatten(input_shape=(X_train_S_std.shape[1],)),
@@ -3027,7 +3105,7 @@ def summary():
             ])
         
             # compile the keras model
-            model.compile(loss=loss, optimizer=optimizer, metrics=['accuracy'])
+            model.compile(loss='binary_crossentropy', optimizer='adam', metrics=['accuracy'])
 
             return model
         
@@ -3038,7 +3116,7 @@ def summary():
         
         # Create the KerasClassifier object with the create_model function
         model = KerasClassifier(build_fn=create_model, units=units, activation=activation,
-                                kernel_initializer=kernel_initializer, loss=loss, optimizer=optimizer)
+                                kernel_initializer=kernel_initializer)
         grid_search_NN = GridSearchCV(estimator=model, param_grid=param_grid_nn, cv=10, verbose=True)
         grid_search_NN.fit(X_train_S_std, y_train_S)
         st.write(f"Neural network: best score: {grid_search_NN.best_score_:.2f} using {grid_search_NN.best_params_}")
@@ -3066,7 +3144,7 @@ def summary():
         }
 
         # The column names
-        metrics = ["K-Nearest Neighbor", "Support Vector Machine", "Decision Tree", "Random Forest", "Neural Network"]
+        metrics = ["K-NN", "SVM", "DT", "RF", "NN"]
 
         # Creating the DataFrame
         df_train = pd.DataFrame(data_train, index=metrics)
@@ -3149,7 +3227,7 @@ def summary():
             ax[1].set_title('Scores for validation set')
 
             buffer = BytesIO()
-            plt.savefig(buffer, format="png")
+            plt.savefig(buffer, format="png", dpi=300)
             plt.close(fig)
 
             buffer.seek(0)
@@ -3190,7 +3268,7 @@ def summary():
 ## MAIN FUNCTION
 
 st.sidebar.header("Choose your goal")
-tabs = ["📊 Data Preprocessing", "🔎 Principal Component Analysis (PCA)", "🏘️ K-Nearest Neighbour (KNN)", "🎰 Support Vector Machine (SVM)", "🌱 Decision Tree", "🌳 Random Forest", "🕸️ Neural Network", "👨‍👩‍👦 Summary"]
+tabs = ["🔎 Welcome in ClassiFy ML", "📊 Data Preprocessing", "💫 Principal Component Analysis (PCA)", "🏘️ K-Nearest Neighbour (KNN)", "🎰 Support Vector Machine (SVM)", "🌱 Decision Tree", "🌳 Random Forest", "🕸️ Neural Network", "👨‍👩‍👦 Summary"]
 active_tab = st.sidebar.selectbox("Select a tab:", tabs)  # Let the user choose the active tab
 
 st.sidebar.markdown("----")
@@ -3218,10 +3296,13 @@ if uploaded_file is not None:
     df = pd.read_excel(uploaded_file,sheet_selector)
 
     # Checking the active tab and displaying content
-    if active_tab == "📊 Data Preprocessing":
+    if active_tab == "🔎 Welcome in ClassiFy ML":
+        welcome_tab()
+
+    elif active_tab == "📊 Data Preprocessing":
         data_preprocessing_tab()
 
-    elif active_tab == "🔎 Principal Component Analysis (PCA)":
+    elif active_tab == "💫 Principal Component Analysis (PCA)":
         pca_tab()
 
     elif active_tab == "🏘️ K-Nearest Neighbour (KNN)":
@@ -3245,13 +3326,15 @@ if uploaded_file is not None:
 
 #------ ELSE ------#
 else:
+    if active_tab == "🔎 Welcome in ClassiFy ML":
+        welcome_tab()
 
-    if active_tab == "📊 Data Preprocessing":
+    elif active_tab == "📊 Data Preprocessing":
         st.title('Data preprocessing')
         st.markdown('##### Explore the dataset chosen by you and check how it presents')
         st.markdown("Submit your data in the left section to see what the data looks like!")
 
-    elif active_tab == "🔎 Principal Component Analysis (PCA)":
+    elif active_tab == "💫 Principal Component Analysis (PCA)":
         st.title("Principal Components Analysis (PCA)")
         st.markdown('##### You can use the PCA method to observer the relationship between variables and objects in your dataset. In addition, it is helpful in selecting descriptors for predictive models')
         st.markdown("Submit your data in the left section to see what the data looks like!")
