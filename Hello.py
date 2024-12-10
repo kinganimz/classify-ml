@@ -37,6 +37,7 @@ from scikeras.wrappers import KerasClassifier
 #from keras.layers import Dense
 from sklearn.svm import SVC
 from sklearn import metrics
+from scipy.spatial.distance import euclidean
 from sklearn.preprocessing import scale
 from sklearn.metrics import confusion_matrix
 from sklearn.metrics import accuracy_score
@@ -137,6 +138,7 @@ def download_excel_files_PCA(excel_buffer, df, without_NA, all_df_cat, eigenvalu
 
 
 def welcome_tab():
+
     st.title('ClassiFy ML – Simplify Your Data Analysis and ML Modeling! 🚀')
     st.markdown('##### ClassiFy ML is your all-in-one solution for seamless data analysis and machine learning classification.')
     st.markdown("Developed with Streamlit, this intuitive web app empowers you to explore data effortlessly and create predictive models using methods like: K Nearest Neighbors, Support Vector Machine, Decision Tree, Random Forest, and Neural Network")
@@ -157,7 +159,7 @@ def welcome_tab():
 
     
 def data_preprocessing_tab():
-    st.title('Data preprocessing')
+
     st.markdown('##### Explore the dataset chosen by you and check how it presents')
     #st.sidebar.header("Data transfer")
     #uploaded_file = st.sidebar.file_uploader("Upload your file here...", type=['xlsx'])
@@ -211,6 +213,18 @@ def data_preprocessing_tab():
 
 # Principal Component Analysis (PCA) function
 def pca_tab():
+    st.markdown("""
+    <style>
+        .reportview-container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        .stMarkdown {
+            font-size: 1.2em;
+            line-height: 1.5;
+        }
+    </style>
+""", unsafe_allow_html=True)
     st.title("Principal Components Analysis (PCA)")
     st.markdown('##### You can use the PCA method to observer the relationship between variables and objects in your dataset. In addition, it is helpful in selecting descriptors for predictive models')
 
@@ -751,6 +765,103 @@ def knn_tab():
         output_str_KNN = ",\n".join(column_names_list)
         split_KNN_train = 1 - split_KNN
 
+        st.subheader(" ")
+        st.subheader("Applicability Domain")
+
+        AD_button_KNN = st.radio('##### Which AD method you would like to try?', ('PCA boundary box', 'Euclidean distance -- not ready yet '), key="AD_button_KNN")
+
+        if AD_button_KNN == 'PCA boundary box':
+            pca_AD = PCA()
+            pca_AD.fit(X_train_KNN_std)
+            pca_data_KNN_AD = pca_AD.transform(X_train_KNN_std)
+
+            pca_AD_test = PCA()
+            pca_AD_test.fit(X_test_KNN_std)
+            pca_data_KNN_AD_test = pca_AD.transform(X_test_KNN_std)
+
+            scores_KNN_AD = pd.DataFrame(pca_data_KNN_AD, columns=train_scaled_KNN_df.columns, index=train_scaled_KNN_df.index)
+            scores_KNN_AD_test = pd.DataFrame(pca_data_KNN_AD_test, columns=valid_scaled_KNN_df.columns, index=valid_scaled_KNN_df.index)
+
+            min_KNN_PC1 = scores_KNN_AD.iloc[:,0].min()
+            max_KNN_PC1 = scores_KNN_AD.iloc[:,0].max()
+
+            min_KNN_PC2 = scores_KNN_AD.iloc[:,1].min()
+            max_KNN_PC2 = scores_KNN_AD.iloc[:,1].max()
+
+            fig, ax = plt.subplots()
+            sns.set_style("whitegrid")
+            sns.scatterplot(x=scores_KNN_AD.iloc[:,0], y=scores_KNN_AD.iloc[:,1], ax=ax, c='steelblue',  marker="o", s=85, alpha=0.60)
+            sns.scatterplot(x=scores_KNN_AD_test.iloc[:,0], y=scores_KNN_AD_test.iloc[:,1], ax=ax, c='darkseagreen', marker="s", s=85, alpha=0.60)
+            plt.axvline(min_KNN_PC1, c='gray', linestyle='--')
+            plt.axvline(max_KNN_PC1, c='gray', linestyle='--')
+            plt.axhline(min_KNN_PC2, c='gray', linestyle='--')
+            plt.axhline(max_KNN_PC2, c='gray', linestyle='--')
+            plt.xlabel("PC1", fontsize=12)
+            plt.ylabel("PC2", fontsize=12)
+            plt.legend(['Training set', 'Validation set'], loc='center left', bbox_to_anchor=(1.0, 0.5))
+            plt.grid(True)
+            st.pyplot(fig)
+
+        else:
+            from scipy.spatial.distance import euclidean
+            centroid = X_train_KNN_std.mean(axis=0)
+
+            # Calculate euclidean distance for both sets
+            distances_train = np.array([euclidean(x, centroid) for x in X_train_KNN_std])
+            distances_test = np.array([euclidean(x, centroid) for x in X_test_KNN_std])
+            # Create indexes for distances
+            distances_train_index = range(len(distances_train))
+            distances_test_index = range(len(distances_test))
+
+            # Set up threshold based on mean distance + 2 * standard deviation
+            threshold = distances_train.mean() + 2 * distances_train.std()
+            out_of_AD_test = distances_test > threshold
+
+            fig, ax = plt.subplots()
+            sns.set_style("whitegrid")
+
+            # Traning set (inside AD)
+            sns.scatterplot(
+                x=distances_train_index,
+                y=distances_train,
+                ax=ax,
+                c='steelblue',
+                marker="o",
+                s=85,
+                alpha=0.60,
+                label='Training set'
+            )
+
+            # Validation set (inside AD)
+            sns.scatterplot(
+                x=[i for i, out in zip(distances_test_index, out_of_AD_test) if not out],
+                y=[dist for dist, out in zip(distances_test, out_of_AD_test) if not out],
+                ax=ax,
+                c='darkseagreen',
+                marker="s",
+                s=85,
+                alpha=0.60,
+                label='Validation set (In AD)'
+            )
+
+            # Validation set (outside AD)
+            sns.scatterplot(
+                x=[i for i, out in zip(distances_test_index, out_of_AD_test) if out],
+                y=[dist for dist, out in zip(distances_test, out_of_AD_test) if out],
+                ax=ax,
+                c='red',
+                marker="x",
+                s=85,
+                alpha=0.60,
+                label='Validation set (Out of AD)'
+            )
+
+            plt.axhline(threshold, color='gray', linestyle='--', label=f'Threshold = {threshold:.2f}')
+            plt.xlabel("Index", fontsize=12)
+            plt.ylabel("Euclidean Distance", fontsize=12)
+            plt.legend(loc='center left', bbox_to_anchor=(1.0, 0.5))
+            plt.grid(True)
+            st.pyplot(fig)
 
         st.subheader('Download all excel files and report!')
         # Function to generate a PDF report
@@ -836,6 +947,43 @@ def knn_tab():
                                 ('GRID', (0, 0), (-1, -1), 1, '#a0a0a0'),
                                 ]))
             story.append(t)
+            story.append(Spacer(1, 12))
+
+            # Applicability Domain Plot
+            story.append(Paragraph("Applicability Domain (AD)", styles["Heading3"]))
+
+            if AD_button_KNN == 'PCA boundary box':
+                # PCA boundary box plot
+                fig, ax = plt.subplots()
+                sns.set_style("whitegrid")
+                sns.scatterplot(x=scores_KNN_AD.iloc[:, 0], y=scores_KNN_AD.iloc[:, 1], ax=ax, c='steelblue', marker="o", s=85, alpha=0.60)
+                sns.scatterplot(x=scores_KNN_AD_test.iloc[:, 0], y=scores_KNN_AD_test.iloc[:, 1], ax=ax, c='darkseagreen', marker="s", s=85, alpha=0.60)
+                plt.axvline(min_KNN_PC1, c='gray', linestyle='--')
+                plt.axvline(max_KNN_PC1, c='gray', linestyle='--')
+                plt.axhline(min_KNN_PC2, c='gray', linestyle='--')
+                plt.axhline(max_KNN_PC2, c='gray', linestyle='--')
+                plt.xlabel("PC1")
+                plt.ylabel("PC2")
+                plt.title("PCA Boundary Box for Applicability Domain")
+            else:
+                # Euclidean distance plot
+                fig, ax = plt.subplots()
+                sns.set_style("whitegrid")
+                sns.scatterplot(x=range(len(distances_test)), y=distances_test, c='darkseagreen', marker="s", s=85, alpha=0.60)
+                plt.axhline(threshold, color='gray', linestyle='--', label=f'Threshold = {threshold:.2f}')
+                plt.xlabel("Sample Index")
+                plt.ylabel("Euclidean Distance")
+                plt.title("Euclidean Distance for Applicability Domain")
+
+            # Zapisanie wykresu AD do bufora
+            ad_buffer = BytesIO()
+            plt.savefig(ad_buffer, format="png", dpi=300)
+            plt.close(fig)
+
+            ad_buffer.seek(0)
+            ad_img = ad_buffer.read()
+            ad_buffer.close()
+            story.append(Image(BytesIO(ad_img), 500, 400))
             story.append(Spacer(1, 12))
 
             doc.build(story)
@@ -946,49 +1094,6 @@ def knn_tab():
 
         else:
             st.markdown(' ')
-
-
-        st.subheader(" ")
-        st.subheader("Applicability Domain - PCA boundary box")
-
-        pca_AD = PCA()
-        pca_AD.fit(X_train_KNN_std)
-        pca_data_KNN_AD = pca_AD.transform(X_train_KNN_std)
-
-        pca_AD_test = PCA()
-        pca_AD_test.fit(X_test_KNN_std)
-        pca_data_KNN_AD_test = pca_AD.transform(X_test_KNN_std)
-
-        # Make plot here from PC1 and PC2 scores
-        # Take max and min value from PC1 and PC2 
-        # Make a gray lines
-
-        scores_KNN_AD = pd.DataFrame(pca_data_KNN_AD, columns=train_scaled_KNN_df.columns, index=train_scaled_KNN_df.index)
-        scores_KNN_AD_test = pd.DataFrame(pca_data_KNN_AD_test, columns=valid_scaled_KNN_df.columns, index=valid_scaled_KNN_df.index)
-
-
-        # Minimum and maximum values
-
-        min_KNN_PC1 = scores_KNN_AD.iloc[:,0].min()
-        max_KNN_PC1 = scores_KNN_AD.iloc[:,0].max()
-
-        min_KNN_PC2 = scores_KNN_AD.iloc[:,1].min()
-        max_KNN_PC2 = scores_KNN_AD.iloc[:,1].max()
-
-        fig, ax = plt.subplots()
-        sns.set_style("whitegrid")
-        sns.scatterplot(x=scores_KNN_AD.iloc[:,0], y=scores_KNN_AD.iloc[:,1], ax=ax, c='steelblue',  marker="o", s=85, alpha=0.60)
-        sns.scatterplot(x=scores_KNN_AD_test.iloc[:,0], y=scores_KNN_AD_test.iloc[:,1], ax=ax, c='darkseagreen', marker="s", s=85, alpha=0.60)
-        plt.axvline(min_KNN_PC1, c='gray', linestyle='--')
-        plt.axvline(max_KNN_PC1, c='gray', linestyle='--')
-        plt.axhline(min_KNN_PC2, c='gray', linestyle='--')
-        plt.axhline(max_KNN_PC2, c='gray', linestyle='--')
-        plt.xlabel("PC1", fontsize=12)
-        plt.ylabel("PC2", fontsize=12)
-        plt.legend(['Training set', 'Validation set'], loc='center left', bbox_to_anchor=(1.0, 0.5))
-        plt.grid(True)
-        st.pyplot(fig)
-        
 
 
 
@@ -1217,6 +1322,110 @@ def svm_tab():
         output_str_SVM = ",\n".join(column_names_list)  # Dodaj przecinki pomiędzy nazwami deskryptorów
         split_SVM_train = 1 - split_SVM
 
+        st.subheader(" ")
+        st.subheader("Applicability Domain")
+
+        AD_button_SVM = st.radio('##### Which AD method you would like to try?', ('PCA boundary box', 'Euclidean distance -- not ready yet '), key="AD_button_SVM")
+
+        if AD_button_SVM == 'PCA boundary box':
+            pca_AD = PCA()
+            pca_AD.fit(X_train_SVM_std)
+            pca_data_AD = pca_AD.transform(X_train_SVM_std)
+
+            pca_AD_test = PCA()
+            pca_AD_test.fit(X_test_SVM_std)
+            pca_data_AD_test = pca_AD.transform(X_test_SVM_std)
+
+            scores_AD = pd.DataFrame(pca_data_AD, columns=train_scaled_SVM_df.columns, index=train_scaled_SVM_df.index)
+            scores_AD_test = pd.DataFrame(pca_data_AD_test, columns=valid_scaled_SVM_df.columns, index=valid_scaled_SVM_df.index)
+
+            min_PC1 = scores_AD.iloc[:,0].min()
+            max_PC1 = scores_AD.iloc[:,0].max()
+
+            min_PC2 = scores_AD.iloc[:,1].min()
+            max_PC2 = scores_AD.iloc[:,1].max()
+
+            fig, ax = plt.subplots()
+            sns.set_style("whitegrid")
+            sns.scatterplot(x=scores_AD.iloc[:,0], y=scores_AD.iloc[:,1], ax=ax, c='steelblue',  marker="o", s=85, alpha=0.60)
+            sns.scatterplot(x=scores_AD_test.iloc[:,0], y=scores_AD_test.iloc[:,1], ax=ax, c='darkseagreen', marker="s", s=85, alpha=0.60)
+            plt.axvline(min_PC1, c='gray', linestyle='--')
+            plt.axvline(max_PC1, c='gray', linestyle='--')
+            plt.axhline(min_PC2, c='gray', linestyle='--')
+            plt.axhline(max_PC2, c='gray', linestyle='--')
+            plt.xlabel("PC1", fontsize=12)
+            plt.ylabel("PC2", fontsize=12)
+            plt.legend(['Training set', 'Validation set'], loc='center left', bbox_to_anchor=(1.0, 0.5))
+            plt.grid(True)
+            st.pyplot(fig)
+
+        else:
+            from scipy.spatial.distance import euclidean
+            centroid = X_train_SVM_std.mean(axis=0)
+
+            # Calculate euclidean distance for both sets
+            distances_train = np.array([euclidean(x, centroid) for x in X_train_SVM_std])
+            distances_test = np.array([euclidean(x, centroid) for x in X_test_SVM_std])
+            # Create indexes for distances
+            distances_train_index = range(len(distances_train))
+            distances_test_index = range(len(distances_test))
+
+            # Set up threshold based on mean distance + 2 * standard deviation
+            threshold = distances_train.mean() + 2 * distances_train.std()
+            out_of_AD_test = distances_test > threshold
+
+            fig, ax = plt.subplots()
+            sns.set_style("whitegrid")
+
+            # Traning set (inside AD)
+            sns.scatterplot(
+                x=distances_train_index,
+                y=distances_train,
+                ax=ax,
+                c='steelblue',
+                marker="o",
+                s=85,
+                alpha=0.60,
+                label='Training set'
+            )
+
+            # Validation set (inside AD)
+            sns.scatterplot(
+                x=[i for i, out in zip(distances_test_index, out_of_AD_test) if not out],
+                y=[dist for dist, out in zip(distances_test, out_of_AD_test) if not out],
+                ax=ax,
+                c='darkseagreen',
+                marker="s",
+                s=85,
+                alpha=0.60,
+                label='Validation set (In AD)'
+            )
+
+            # Validation set (outside AD)
+            sns.scatterplot(
+                x=[i for i, out in zip(distances_test_index, out_of_AD_test) if out],
+                y=[dist for dist, out in zip(distances_test, out_of_AD_test) if out],
+                ax=ax,
+                c='red',
+                marker="x",
+                s=85,
+                alpha=0.60,
+                label='Validation set (Out of AD)'
+            )
+
+            plt.axhline(threshold, color='gray', linestyle='--', label=f'Threshold = {threshold:.2f}')
+            plt.xlabel("Index", fontsize=12)
+            plt.ylabel("Euclidean Distance", fontsize=12)
+            plt.legend(loc='center left', bbox_to_anchor=(1.0, 0.5))
+            plt.grid(True)
+            st.pyplot(fig)
+
+
+        # Prepare to report
+        counts_SVM = without_NA_y_SVM.value_counts().tolist()
+        column_names_list = X_df_2_SVM.columns
+        output_str_SVM = ",\n".join(column_names_list)  # Dodaj przecinki pomiędzy nazwami deskryptorów
+        split_SVM_train = 1 - split_SVM
 
         st.subheader('Download all excel files and report!')
         # Function to generate a PDF report
@@ -1302,6 +1511,43 @@ def svm_tab():
                                 ]))
             story.append(t)
             story.append(Spacer(1, 12))
+                        # Applicability Domain Plot
+
+            story.append(Paragraph("Applicability Domain (AD)", styles["Heading3"]))
+
+            if AD_button_SVM == 'PCA boundary box':
+                # PCA boundary box plot
+                fig, ax = plt.subplots()
+                sns.set_style("whitegrid")
+                sns.scatterplot(x=scores_AD.iloc[:, 0], y=scores_AD.iloc[:, 1], ax=ax, c='steelblue', marker="o", s=85, alpha=0.60)
+                sns.scatterplot(x=scores_AD_test.iloc[:, 0], y=scores_AD_test.iloc[:, 1], ax=ax, c='darkseagreen', marker="s", s=85, alpha=0.60)
+                plt.axvline(min_PC1, c='gray', linestyle='--')
+                plt.axvline(max_PC1, c='gray', linestyle='--')
+                plt.axhline(min_PC2, c='gray', linestyle='--')
+                plt.axhline(max_PC2, c='gray', linestyle='--')
+                plt.xlabel("PC1")
+                plt.ylabel("PC2")
+                plt.title("PCA Boundary Box for Applicability Domain")
+            else:
+                # Euclidean distance plot
+                fig, ax = plt.subplots()
+                sns.set_style("whitegrid")
+                sns.scatterplot(x=range(len(distances_test)), y=distances_test, c='darkseagreen', marker="s", s=85, alpha=0.60)
+                plt.axhline(threshold, color='gray', linestyle='--', label=f'Threshold = {threshold:.2f}')
+                plt.xlabel("Sample Index")
+                plt.ylabel("Euclidean Distance")
+                plt.title("Euclidean Distance for Applicability Domain")
+
+            # Zapisanie wykresu AD do bufora
+            ad_buffer = BytesIO()
+            plt.savefig(ad_buffer, format="png", dpi=300)
+            plt.close(fig)
+
+            ad_buffer.seek(0)
+            ad_img = ad_buffer.read()
+            ad_buffer.close()
+            story.append(Image(BytesIO(ad_img), 500, 400))
+            story.append(Spacer(1, 12))
 
             doc.build(story)
 
@@ -1318,9 +1564,6 @@ def svm_tab():
             key="button_report_SVM"
         )
 
-        # Raport nie pobiera confusion matrix - poprawic!!
-        # Problem z generowaniem raportu dla grid_search!
-        # Prawdopodobnie najlepiej wkleić bezpośrednio funkcje generowania raportu pod każdą z metod (w kazdym tabie) - może mniej problematyczne rozwiazanie?
 
         # Download excel file
         excel_buffer = BytesIO()
@@ -1651,6 +1894,104 @@ def dtc_tab():
         plt.close(fig) 
         st.pyplot(fig)
 
+        # Applicability Domain
+        st.subheader(" ")
+        st.subheader("Applicability Domain")
+        AD_button_DTC = st.radio('##### Which AD method you would like to try?', ('PCA boundary box', 'Euclidean distance -- not ready yet '), key="AD_button_DTC")
+
+        if AD_button_DTC == 'PCA boundary box':
+            pca_AD = PCA()
+            pca_AD.fit(X_train_DTC_std)
+            pca_data_AD = pca_AD.transform(X_train_DTC_std)
+
+            pca_AD_test = PCA()
+            pca_AD_test.fit(X_test_DTC_std)
+            pca_data_AD_test = pca_AD.transform(X_test_DTC_std)
+
+            scores_AD = pd.DataFrame(pca_data_AD, columns=train_scaled_DTC_df.columns, index=train_scaled_DTC_df.index)
+            scores_AD_test = pd.DataFrame(pca_data_AD_test, columns=valid_scaled_DTC_df.columns, index=valid_scaled_DTC_df.index)
+
+            min_PC1 = scores_AD.iloc[:,0].min()
+            max_PC1 = scores_AD.iloc[:,0].max()
+
+            min_PC2 = scores_AD.iloc[:,1].min()
+            max_PC2 = scores_AD.iloc[:,1].max()
+
+            fig, ax = plt.subplots()
+            sns.set_style("whitegrid")
+            sns.scatterplot(x=scores_AD.iloc[:,0], y=scores_AD.iloc[:,1], ax=ax, c='steelblue',  marker="o", s=85, alpha=0.60)
+            sns.scatterplot(x=scores_AD_test.iloc[:,0], y=scores_AD_test.iloc[:,1], ax=ax, c='darkseagreen', marker="s", s=85, alpha=0.60)
+            plt.axvline(min_PC1, c='gray', linestyle='--')
+            plt.axvline(max_PC1, c='gray', linestyle='--')
+            plt.axhline(min_PC2, c='gray', linestyle='--')
+            plt.axhline(max_PC2, c='gray', linestyle='--')
+            plt.xlabel("PC1", fontsize=12)
+            plt.ylabel("PC2", fontsize=12)
+            plt.legend(['Training set', 'Validation set'], loc='center left', bbox_to_anchor=(1.0, 0.5))
+            plt.grid(True)
+            st.pyplot(fig)
+
+        else:
+
+            centroid = X_train_DTC_std.mean(axis=0)
+
+            # Calculate euclidean distance for both sets
+            distances_train = np.array([euclidean(x, centroid) for x in X_train_DTC_std])
+            distances_test = np.array([euclidean(x, centroid) for x in X_test_DTC_std])
+            # Create indexes for distances
+            distances_train_index = range(len(distances_train))
+            distances_test_index = range(len(distances_test))
+
+            # Set up threshold based on mean distance + 2 * standard deviation
+            threshold = distances_train.mean() + 2 * distances_train.std()
+            out_of_AD_test = distances_test > threshold
+
+            fig, ax = plt.subplots()
+            sns.set_style("whitegrid")
+
+            # Traning set (inside AD)
+            sns.scatterplot(
+                x=distances_train_index,
+                y=distances_train,
+                ax=ax,
+                c='steelblue',
+                marker="o",
+                s=85,
+                alpha=0.60,
+                label='Training set'
+            )
+
+            # Validation set (inside AD)
+            sns.scatterplot(
+                x=[i for i, out in zip(distances_test_index, out_of_AD_test) if not out],
+                y=[dist for dist, out in zip(distances_test, out_of_AD_test) if not out],
+                ax=ax,
+                c='darkseagreen',
+                marker="s",
+                s=85,
+                alpha=0.60,
+                label='Validation set (In AD)'
+            )
+
+            # Validation set (outside AD)
+            sns.scatterplot(
+                x=[i for i, out in zip(distances_test_index, out_of_AD_test) if out],
+                y=[dist for dist, out in zip(distances_test, out_of_AD_test) if out],
+                ax=ax,
+                c='red',
+                marker="x",
+                s=85,
+                alpha=0.60,
+                label='Validation set (Out of AD)'
+            )
+
+            plt.axhline(threshold, color='gray', linestyle='--', label=f'Threshold = {threshold:.2f}')
+            plt.xlabel("Index", fontsize=12)
+            plt.ylabel("Euclidean Distance", fontsize=12)
+            plt.legend(loc='center left', bbox_to_anchor=(1.0, 0.5))
+            plt.grid(True)
+            st.pyplot(fig)
+
         # Prepare to report
         counts_DTC = without_NA_y_DTC.value_counts().tolist()
         column_names_list = X_df_2_DTC.columns
@@ -1750,6 +2091,40 @@ def dtc_tab():
             story.append(Paragraph("Decision Tree:", styles["Heading3"]))
             story.append(Spacer(1, 12))
             story.append(Image("decision_tree.png", 500, 300))  # Dodaj wykres do raportu
+            story.append(Spacer(1, 12))
+
+            # Applicability Domain
+            story.append(Paragraph("Applicability Domain (AD)", styles["Heading3"]))
+            if AD_button_DTC == 'PCA boundary box':
+                fig, ax = plt.subplots()
+                sns.set_style("whitegrid")
+                sns.scatterplot(x=scores_AD.iloc[:, 0], y=scores_AD.iloc[:, 1], ax=ax, c='steelblue', marker="o", s=85, alpha=0.60)
+                sns.scatterplot(x=scores_AD_test.iloc[:, 0], y=scores_AD_test.iloc[:, 1], ax=ax, c='darkseagreen', marker="s", s=85, alpha=0.60)
+                plt.axvline(min_PC1, c='gray', linestyle='--')
+                plt.axvline(max_PC1, c='gray', linestyle='--')
+                plt.axhline(min_PC2, c='gray', linestyle='--')
+                plt.axhline(max_PC2, c='gray', linestyle='--')
+                plt.xlabel("PC1")
+                plt.ylabel("PC2")
+                plt.title("PCA Boundary Box for Applicability Domain")
+            else:
+                # Euclidean distance plot
+                fig, ax = plt.subplots()
+                sns.set_style("whitegrid")
+                sns.scatterplot(x=range(len(distances_test)), y=distances_test, c='darkseagreen', marker="s", s=85, alpha=0.60)
+                plt.axhline(threshold, color='gray', linestyle='--', label=f'Threshold = {threshold:.2f}')
+                plt.xlabel("Sample Index")
+                plt.ylabel("Euclidean Distance")
+                plt.title("Euclidean Distance for Applicability Domain")
+
+            ad_buffer = BytesIO()
+            plt.savefig(ad_buffer, format="png", dpi=300)
+            plt.close(fig)
+
+            ad_buffer.seek(0)
+            ad_img = ad_buffer.read()
+            ad_buffer.close()
+            story.append(Image(BytesIO(ad_img), 500, 400))
             story.append(Spacer(1, 12))
 
             doc.build(story)
@@ -2096,6 +2471,103 @@ def rfc_tab():
             st.markdown(f"F1 Score: {valid_stats_RFC[3]:.2f}")
             st.markdown(f"MCC: {valid_stats_RFC[4]:.2f}")
 
+        # Applicability Domain
+        st.subheader(" ")
+        st.subheader("Applicability Domain")
+        AD_button_RFC = st.radio('##### Which AD method you would like to try?', ('PCA boundary box', 'Euclidean distance -- not ready yet '), key="AD_button_RFC")
+        if AD_button_RFC == 'PCA boundary box':
+            pca_AD = PCA()
+            pca_AD.fit(X_train_RFC_std)
+            pca_data_AD = pca_AD.transform(X_train_RFC_std)
+
+            pca_AD_test = PCA()
+            pca_AD_test.fit(X_test_RFC_std)
+            pca_data_AD_test = pca_AD.transform(X_test_RFC_std)
+
+            scores_AD = pd.DataFrame(pca_data_AD, columns=train_scaled_RFC_df.columns, index=train_scaled_RFC_df.index)
+            scores_AD_test = pd.DataFrame(pca_data_AD_test, columns=valid_scaled_RFC_df.columns, index=valid_scaled_RFC_df.index)
+
+            min_PC1 = scores_AD.iloc[:,0].min()
+            max_PC1 = scores_AD.iloc[:,0].max()
+
+            min_PC2 = scores_AD.iloc[:,1].min()
+            max_PC2 = scores_AD.iloc[:,1].max()
+
+            fig, ax = plt.subplots()
+            sns.set_style("whitegrid")
+            sns.scatterplot(x=scores_AD.iloc[:,0], y=scores_AD.iloc[:,1], ax=ax, c='steelblue',  marker="o", s=85, alpha=0.60)
+            sns.scatterplot(x=scores_AD_test.iloc[:,0], y=scores_AD_test.iloc[:,1], ax=ax, c='darkseagreen', marker="s", s=85, alpha=0.60)
+            plt.axvline(min_PC1, c='gray', linestyle='--')
+            plt.axvline(max_PC1, c='gray', linestyle='--')
+            plt.axhline(min_PC2, c='gray', linestyle='--')
+            plt.axhline(max_PC2, c='gray', linestyle='--')
+            plt.xlabel("PC1", fontsize=12)
+            plt.ylabel("PC2", fontsize=12)
+            plt.legend(['Training set', 'Validation set'], loc='center left', bbox_to_anchor=(1.0, 0.5))
+            plt.grid(True)
+            st.pyplot(fig)
+
+        else:
+            # Euclidean distances
+            centroid = X_train_RFC_std.mean(axis=0)
+            # Calculate euclidean distance for both sets
+            distances_train = np.array([euclidean(x, centroid) for x in X_train_RFC_std])
+            distances_test = np.array([euclidean(x, centroid) for x in X_test_RFC_std])
+            # Create indexes for distances
+            distances_train_index = range(len(distances_train))
+            distances_test_index = range(len(distances_test))
+
+            # Set up threshold based on mean distance + 2 * standard deviation
+            threshold = distances_train.mean() + 2 * distances_train.std()
+            out_of_AD_test = distances_test > threshold
+
+            fig, ax = plt.subplots()
+            sns.set_style("whitegrid")
+
+            # Traning set (inside AD)
+            sns.scatterplot(
+                x=distances_train_index,
+                y=distances_train,
+                ax=ax,
+                c='steelblue',
+                marker="o",
+                s=85,
+                alpha=0.60,
+                label='Training set'
+            )
+
+            # Validation set (inside AD)
+            sns.scatterplot(
+                x=[i for i, out in zip(distances_test_index, out_of_AD_test) if not out],
+                y=[dist for dist, out in zip(distances_test, out_of_AD_test) if not out],
+                ax=ax,
+                c='darkseagreen',
+                marker="s",
+                s=85,
+                alpha=0.60,
+                label='Validation set (In AD)'
+            )
+
+            # Validation set (outside AD)
+            sns.scatterplot(
+                x=[i for i, out in zip(distances_test_index, out_of_AD_test) if out],
+                y=[dist for dist, out in zip(distances_test, out_of_AD_test) if out],
+                ax=ax,
+                c='red',
+                marker="x",
+                s=85,
+                alpha=0.60,
+                label='Validation set (Out of AD)'
+            )
+
+            plt.axhline(threshold, color='gray', linestyle='--', label=f'Threshold = {threshold:.2f}')
+            plt.xlabel("Index", fontsize=12)
+            plt.ylabel("Euclidean Distance", fontsize=12)
+            plt.legend(loc='center left', bbox_to_anchor=(1.0, 0.5))
+            plt.grid(True)
+            st.pyplot(fig)
+
+
         # Prepare to report
         counts_RFC = without_NA_y_RFC.value_counts().tolist()
         column_names_list = X_df_2_RFC.columns
@@ -2204,6 +2676,41 @@ def rfc_tab():
             story.append(Paragraph("Feature Importance Plot:", styles["Normal"]))
             story.append(Spacer(1, 12))
             story.append(Image(BytesIO(img), 500, 400))
+            story.append(Spacer(1, 12))
+
+
+            # Applicability Domain
+            story.append(Paragraph("Applicability Domain (AD)", styles["Heading3"]))
+            if AD_button_RFC == 'PCA boundary box':
+                fig, ax = plt.subplots()
+                sns.set_style("whitegrid")
+                sns.scatterplot(x=scores_AD.iloc[:, 0], y=scores_AD.iloc[:, 1], ax=ax, c='steelblue', marker="o", s=85, alpha=0.60)
+                sns.scatterplot(x=scores_AD_test.iloc[:, 0], y=scores_AD_test.iloc[:, 1], ax=ax, c='darkseagreen', marker="s", s=85, alpha=0.60)
+                plt.axvline(min_PC1, c='gray', linestyle='--')
+                plt.axvline(max_PC1, c='gray', linestyle='--')
+                plt.axhline(min_PC2, c='gray', linestyle='--')
+                plt.axhline(max_PC2, c='gray', linestyle='--')
+                plt.xlabel("PC1")
+                plt.ylabel("PC2")
+                plt.title("PCA Boundary Box for Applicability Domain")
+            else:
+                # Euclidean distance plot
+                fig, ax = plt.subplots()
+                sns.set_style("whitegrid")
+                sns.scatterplot(x=range(len(distances_test)), y=distances_test, c='darkseagreen', marker="s", s=85, alpha=0.60)
+                plt.axhline(threshold, color='gray', linestyle='--', label=f'Threshold = {threshold:.2f}')
+                plt.xlabel("Sample Index")
+                plt.ylabel("Euclidean Distance")
+                plt.title("Euclidean Distance for Applicability Domain")
+
+            ad_buffer = BytesIO()
+            plt.savefig(ad_buffer, format="png", dpi=300)
+            plt.close(fig)
+
+            ad_buffer.seek(0)
+            ad_img = ad_buffer.read()
+            ad_buffer.close()
+            story.append(Image(BytesIO(ad_img), 500, 400))
             story.append(Spacer(1, 12))
 
             doc.build(story)
@@ -2650,6 +3157,101 @@ def nn_tab():
             st.markdown(f"F1 Score: {valid_stats_NN[3]:.2f}")
             st.markdown(f"MCC: {valid_stats_NN[4]:.2f}")
 
+        # Applicability Domain
+        st.subheader(" ")
+        st.subheader("Applicability Domain")
+        AD_button_NN = st.radio('##### Which AD method you would like to try?', ('PCA boundary box', 'Euclidean distance -- not ready yet '), key="AD_button_NN")
+        if AD_button_NN == 'PCA boundary box':
+            pca_AD = PCA()
+            pca_AD.fit(X_train_NN_std)
+            pca_data_AD = pca_AD.transform(X_train_NN_std)
+
+            pca_AD_test = PCA()
+            pca_AD_test.fit(X_test_NN_std)
+            pca_data_AD_test = pca_AD.transform(X_test_NN_std)
+
+            scores_AD = pd.DataFrame(pca_data_AD, columns=train_scaled_NN_df.columns, index=train_scaled_NN_df.index)
+            scores_AD_test = pd.DataFrame(pca_data_AD_test, columns=valid_scaled_NN_df.columns, index=valid_scaled_NN_df.index)
+
+            min_PC1 = scores_AD.iloc[:,0].min()
+            max_PC1 = scores_AD.iloc[:,0].max()
+
+            min_PC2 = scores_AD.iloc[:,1].min()
+            max_PC2 = scores_AD.iloc[:,1].max()
+
+            fig, ax = plt.subplots()
+            sns.set_style("whitegrid")
+            sns.scatterplot(x=scores_AD.iloc[:,0], y=scores_AD.iloc[:,1], ax=ax, c='steelblue',  marker="o", s=85, alpha=0.60)
+            sns.scatterplot(x=scores_AD_test.iloc[:,0], y=scores_AD_test.iloc[:,1], ax=ax, c='darkseagreen', marker="s", s=85, alpha=0.60)
+            plt.axvline(min_PC1, c='gray', linestyle='--')
+            plt.axvline(max_PC1, c='gray', linestyle='--')
+            plt.axhline(min_PC2, c='gray', linestyle='--')
+            plt.axhline(max_PC2, c='gray', linestyle='--')
+            plt.xlabel("PC1", fontsize=12)
+            plt.ylabel("PC2", fontsize=12)
+            plt.legend(['Training set', 'Validation set'], loc='center left', bbox_to_anchor=(1.0, 0.5))
+            plt.grid(True)
+            st.pyplot(fig)
+
+        else:
+            # Euclidean distances
+            centroid = X_train_NN_std.mean(axis=0)
+            # Calculate euclidean distance for both sets
+            distances_train = np.array([euclidean(x, centroid) for x in X_train_NN_std])
+            distances_test = np.array([euclidean(x, centroid) for x in X_test_NN_std])
+            # Create indexes for distances
+            distances_train_index = range(len(distances_train))
+            distances_test_index = range(len(distances_test))
+
+            # Set up threshold based on mean distance + 2 * standard deviation
+            threshold = distances_train.mean() + 2 * distances_train.std()
+            out_of_AD_test = distances_test > threshold
+
+            fig, ax = plt.subplots()
+            sns.set_style("whitegrid")
+
+            # Traning set (inside AD)
+            sns.scatterplot(
+                x=distances_train_index,
+                y=distances_train,
+                ax=ax,
+                c='steelblue',
+                marker="o",
+                s=85,
+                alpha=0.60,
+                label='Training set'
+            )
+
+            # Validation set (inside AD)
+            sns.scatterplot(
+                x=[i for i, out in zip(distances_test_index, out_of_AD_test) if not out],
+                y=[dist for dist, out in zip(distances_test, out_of_AD_test) if not out],
+                ax=ax,
+                c='darkseagreen',
+                marker="s",
+                s=85,
+                alpha=0.60,
+                label='Validation set (In AD)'
+            )
+
+            # Validation set (outside AD)
+            sns.scatterplot(
+                x=[i for i, out in zip(distances_test_index, out_of_AD_test) if out],
+                y=[dist for dist, out in zip(distances_test, out_of_AD_test) if out],
+                ax=ax,
+                c='red',
+                marker="x",
+                s=85,
+                alpha=0.60,
+                label='Validation set (Out of AD)'
+            )
+
+            plt.axhline(threshold, color='gray', linestyle='--', label=f'Threshold = {threshold:.2f}')
+            plt.xlabel("Index", fontsize=12)
+            plt.ylabel("Euclidean Distance", fontsize=12)
+            plt.legend(loc='center left', bbox_to_anchor=(1.0, 0.5))
+            plt.grid(True)
+            st.pyplot(fig)
 
         # Prepare to report
         counts_NN = without_NA_y_NN.value_counts().tolist()
@@ -2735,6 +3337,40 @@ def nn_tab():
                                 ('GRID', (0, 0), (-1, -1), 1, '#a0a0a0'),
                                 ]))
             story.append(t)
+            story.append(Spacer(1, 12))
+
+            # Applicability Domain
+            story.append(Paragraph("Applicability Domain (AD)", styles["Heading3"]))
+            if AD_button_NN == 'PCA boundary box':
+                fig, ax = plt.subplots()
+                sns.set_style("whitegrid")
+                sns.scatterplot(x=scores_AD.iloc[:, 0], y=scores_AD.iloc[:, 1], ax=ax, c='steelblue', marker="o", s=85, alpha=0.60)
+                sns.scatterplot(x=scores_AD_test.iloc[:, 0], y=scores_AD_test.iloc[:, 1], ax=ax, c='darkseagreen', marker="s", s=85, alpha=0.60)
+                plt.axvline(min_PC1, c='gray', linestyle='--')
+                plt.axvline(max_PC1, c='gray', linestyle='--')
+                plt.axhline(min_PC2, c='gray', linestyle='--')
+                plt.axhline(max_PC2, c='gray', linestyle='--')
+                plt.xlabel("PC1")
+                plt.ylabel("PC2")
+                plt.title("PCA Boundary Box for Applicability Domain")
+            else:
+                # Euclidean distance plot
+                fig, ax = plt.subplots()
+                sns.set_style("whitegrid")
+                sns.scatterplot(x=range(len(distances_test)), y=distances_test, c='darkseagreen', marker="s", s=85, alpha=0.60)
+                plt.axhline(threshold, color='gray', linestyle='--', label=f'Threshold = {threshold:.2f}')
+                plt.xlabel("Sample Index")
+                plt.ylabel("Euclidean Distance")
+                plt.title("Euclidean Distance for Applicability Domain")
+
+            ad_buffer = BytesIO()
+            plt.savefig(ad_buffer, format="png", dpi=300)
+            plt.close(fig)
+
+            ad_buffer.seek(0)
+            ad_img = ad_buffer.read()
+            ad_buffer.close()
+            story.append(Image(BytesIO(ad_img), 500, 400))
             story.append(Spacer(1, 12))
 
             doc.build(story)
@@ -3180,6 +3816,101 @@ def summary():
         #heatmap_valid.figure.colorbar(heatmap_valid.collections[0], label='Score')
         st.pyplot(fig)
 
+        # Applicability Domain
+        st.subheader(" ")
+        st.subheader("Applicability Domain")
+        AD_button_S = st.radio('##### Which AD method you would like to try?', ('PCA boundary box', 'Euclidean distance -- not ready yet '), key="AD_button_S")
+        if AD_button_S == 'PCA boundary box':
+            pca_AD = PCA()
+            pca_AD.fit(X_train_S_std)
+            pca_data_AD = pca_AD.transform(X_train_S_std)
+
+            pca_AD_test = PCA()
+            pca_AD_test.fit(X_test_S_std)
+            pca_data_AD_test = pca_AD.transform(X_test_S_std)
+
+            scores_AD = pd.DataFrame(pca_data_AD, columns=train_scaled_S_df.columns, index=train_scaled_S_df.index)
+            scores_AD_test = pd.DataFrame(pca_data_AD_test, columns=valid_scaled_S_df.columns, index=valid_scaled_S_df.index)
+
+            min_PC1 = scores_AD.iloc[:,0].min()
+            max_PC1 = scores_AD.iloc[:,0].max()
+
+            min_PC2 = scores_AD.iloc[:,1].min()
+            max_PC2 = scores_AD.iloc[:,1].max()
+
+            fig, ax = plt.subplots()
+            sns.set_style("whitegrid")
+            sns.scatterplot(x=scores_AD.iloc[:,0], y=scores_AD.iloc[:,1], ax=ax, c='steelblue',  marker="o", s=85, alpha=0.60)
+            sns.scatterplot(x=scores_AD_test.iloc[:,0], y=scores_AD_test.iloc[:,1], ax=ax, c='darkseagreen', marker="s", s=85, alpha=0.60)
+            plt.axvline(min_PC1, c='gray', linestyle='--')
+            plt.axvline(max_PC1, c='gray', linestyle='--')
+            plt.axhline(min_PC2, c='gray', linestyle='--')
+            plt.axhline(max_PC2, c='gray', linestyle='--')
+            plt.xlabel("PC1", fontsize=12)
+            plt.ylabel("PC2", fontsize=12)
+            plt.legend(['Training set', 'Validation set'], loc='center left', bbox_to_anchor=(1.0, 0.5))
+            plt.grid(True)
+            st.pyplot(fig)
+
+        else:
+            # Euclidean distances
+            centroid = X_train_S_std.mean(axis=0)
+            # Calculate euclidean distance for both sets
+            distances_train = np.array([euclidean(x, centroid) for x in X_train_S_std])
+            distances_test = np.array([euclidean(x, centroid) for x in X_test_S_std])
+            # Create indexes for distances
+            distances_train_index = range(len(distances_train))
+            distances_test_index = range(len(distances_test))
+
+            # Set up threshold based on mean distance + 2 * standard deviation
+            threshold = distances_train.mean() + 2 * distances_train.std()
+            out_of_AD_test = distances_test > threshold
+
+            fig, ax = plt.subplots()
+            sns.set_style("whitegrid")
+
+            # Traning set (inside AD)
+            sns.scatterplot(
+                x=distances_train_index,
+                y=distances_train,
+                ax=ax,
+                c='steelblue',
+                marker="o",
+                s=85,
+                alpha=0.60,
+                label='Training set'
+            )
+
+            # Validation set (inside AD)
+            sns.scatterplot(
+                x=[i for i, out in zip(distances_test_index, out_of_AD_test) if not out],
+                y=[dist for dist, out in zip(distances_test, out_of_AD_test) if not out],
+                ax=ax,
+                c='darkseagreen',
+                marker="s",
+                s=85,
+                alpha=0.60,
+                label='Validation set (In AD)'
+            )
+
+            # Validation set (outside AD)
+            sns.scatterplot(
+                x=[i for i, out in zip(distances_test_index, out_of_AD_test) if out],
+                y=[dist for dist, out in zip(distances_test, out_of_AD_test) if out],
+                ax=ax,
+                c='red',
+                marker="x",
+                s=85,
+                alpha=0.60,
+                label='Validation set (Out of AD)'
+            )
+
+            plt.axhline(threshold, color='gray', linestyle='--', label=f'Threshold = {threshold:.2f}')
+            plt.xlabel("Index", fontsize=12)
+            plt.ylabel("Euclidean Distance", fontsize=12)
+            plt.legend(loc='center left', bbox_to_anchor=(1.0, 0.5))
+            plt.grid(True)
+            st.pyplot(fig)
 
         st.subheader('Download all excel files and report!')
         st.subheader(' ')
@@ -3220,7 +3951,7 @@ def summary():
             # Heatmaps
             story.append(Paragraph("Scores Heatmap", styles["Heading3"]))
             fig, ax = plt.subplots(nrows=1, ncols=2)
-            heatmap_valid = sns.heatmap(df_valid, annot=True, ax=ax[0], vmin=-1, vmax=1)
+            heatmap_valid = sns.heatmap(df_valid, annot=True, cmap="YlGnBu", ax=ax, vmin=0, vmax=1)
             ax[0].set_title('Scores for training set')
 
             heatmap_train = sns.heatmap(df_train, annot=True, ax=ax[1], vmin=-1, vmax=1)
@@ -3233,8 +3964,43 @@ def summary():
             buffer.seek(0)
             img = buffer.read()
             buffer.close()
-            story.append(Image(BytesIO(img), 500, 200))
+            story.append(Image(BytesIO(img), 500, 400))
             story.append(Spacer(1, 12))
+
+            # Applicability Domain
+            story.append(Paragraph("Applicability Domain (AD)", styles["Heading3"]))
+            if AD_button_S == 'PCA boundary box':
+                fig, ax = plt.subplots()
+                sns.set_style("whitegrid")
+                sns.scatterplot(x=scores_AD.iloc[:, 0], y=scores_AD.iloc[:, 1], ax=ax, c='steelblue', marker="o", s=85, alpha=0.60)
+                sns.scatterplot(x=scores_AD_test.iloc[:, 0], y=scores_AD_test.iloc[:, 1], ax=ax, c='darkseagreen', marker="s", s=85, alpha=0.60)
+                plt.axvline(min_PC1, c='gray', linestyle='--')
+                plt.axvline(max_PC1, c='gray', linestyle='--')
+                plt.axhline(min_PC2, c='gray', linestyle='--')
+                plt.axhline(max_PC2, c='gray', linestyle='--')
+                plt.xlabel("PC1")
+                plt.ylabel("PC2")
+                plt.title("PCA Boundary Box for Applicability Domain")
+            else:
+                # Euclidean distance plot
+                fig, ax = plt.subplots()
+                sns.set_style("whitegrid")
+                sns.scatterplot(x=range(len(distances_test)), y=distances_test, c='darkseagreen', marker="s", s=85, alpha=0.60)
+                plt.axhline(threshold, color='gray', linestyle='--', label=f'Threshold = {threshold:.2f}')
+                plt.xlabel("Sample Index")
+                plt.ylabel("Euclidean Distance")
+                plt.title("Euclidean Distance for Applicability Domain")
+
+            ad_buffer = BytesIO()
+            plt.savefig(ad_buffer, format="png", dpi=300)
+            plt.close(fig)
+
+            ad_buffer.seek(0)
+            ad_img = ad_buffer.read()
+            ad_buffer.close()
+            story.append(Image(BytesIO(ad_img), 500, 400))
+            story.append(Spacer(1, 12))
+
             doc.build(story)
 
 
@@ -3267,6 +4033,7 @@ def summary():
 
 ## MAIN FUNCTION
 
+st.sidebar.image("classifyml-logo.png",  width=200)
 st.sidebar.header("Choose your goal")
 tabs = ["🔎 Welcome in ClassiFy ML", "📊 Data Preprocessing", "💫 Principal Component Analysis (PCA)", "🏘️ K-Nearest Neighbour (KNN)", "🎰 Support Vector Machine (SVM)", "🌱 Decision Tree", "🌳 Random Forest", "🕸️ Neural Network", "👨‍👩‍👦 Summary"]
 active_tab = st.sidebar.selectbox("Select a tab:", tabs)  # Let the user choose the active tab
@@ -3368,3 +4135,4 @@ else:
         st.title("👨‍👩‍👦 Summary")
         st.markdown('##### Make a predictive models using all 5 methods and compare all of them')
         st.markdown("Submit your data in the left section to see what the data looks like!")
+
