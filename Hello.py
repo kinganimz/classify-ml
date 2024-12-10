@@ -662,18 +662,19 @@ def knn_tab():
             st.write(valid_scaled_KNN_df)
 
 
-        # Select model hyperparameters (GridSearchCV or mannual)
+        # Select model hyperparameters (GridSearchCV or manual)
         st.subheader("It's time to choose hyperparameter your model!")
         hyper_method_KNN = st.radio("###### How would you like to select hyperparameters?", 
                                 ("GridSearchCV", "Yourself"), key="hyperparm_KNN")
 
         # GridSearchCV
         if hyper_method_KNN == "GridSearchCV":
+            cv = st.slider('###### Choose number of cross validation?', min_value=5, max_value=30, value=5, step=1, key="cv_number_knn")
             param_grid = {'n_neighbors':list(range(2,10)),
                         'weights':['distance', 'uniform']}
             
             kNN = KNeighborsClassifier()
-            grid_search_KNN = GridSearchCV(estimator=kNN, param_grid=param_grid, cv=10, verbose=True)
+            grid_search_KNN = GridSearchCV(estimator=kNN, param_grid=param_grid, cv=cv, verbose=True)
             grid_search_KNN.fit(X_train_KNN_std, y_train_KNN)
             st.write(f"Best score: {grid_search_KNN.best_score_:.2f} using {grid_search_KNN.best_params_}")
             #st.write("Best score: %f using %s" % (grid_search.best_score_, grid_search.best_params_))
@@ -1218,19 +1219,20 @@ def svm_tab():
             st.write(valid_scaled_SVM_df)
 
 
-        # Select model hyperparameters (GridSearchCV or mannual)
+        # Select model hyperparameters (GridSearchCV or manual)
         st.subheader("It's time to choose hyperparameter your model!")
         hyper_method_SVM = st.radio("###### How would you like to select hyperparameters?", 
                                 ("GridSearchCV", "Yourself"), key="hyperparm_SVM")
         
-        # CV = 5 na potrzebe wynikow - zmienic!
+
         # GridSearchCV
         if hyper_method_SVM == "GridSearchCV":
+            cv = st.slider('###### Choose number of cross validation?', min_value=5, max_value=30, value=5, step=1, key="cv_number_svm")
             param_grid_SVM = {'C':[0.1,1,10],
                         'kernel':['linear','rbf','poly']}
             
             svc = SVC()
-            grid_search_SVM = GridSearchCV(estimator=svc, param_grid=param_grid_SVM, cv=5, verbose=True)
+            grid_search_SVM = GridSearchCV(estimator=svc, param_grid=param_grid_SVM, cv=cv, verbose=True)
             grid_search_SVM.fit(X_train_SVM_std, y_train_SVM)
             st.write(f"Best score: {grid_search_SVM.best_score_:.2f} using {grid_search_SVM.best_params_}")
             #st.write("Best score: %f using %s" % (grid_search.best_score_, grid_search.best_params_))
@@ -1780,20 +1782,21 @@ def dtc_tab():
             st.write(valid_scaled_DTC_df)
 
 
-        # Select model hyperparameters (GridSearchCV or mannual)
+        # Select model hyperparameters (GridSearchCV or manual)
         st.subheader("It's time to choose hyperparameter your model!")
         hyper_method_DTC = st.radio("###### How would you like to select hyperparameters?", 
                                 ("GridSearchCV", "Yourself"), key="hyperparm_DTC")
 
         # GridSearchCV
         if hyper_method_DTC == "GridSearchCV":
+            cv = st.slider('###### Choose number of cross validation?', min_value=5, max_value=30, value=5, step=1, key="cv_number_dtc")
             param_grid_DTC = {'max_features': ['sqrt', 'log2'],
                             'max_depth' : list(range(2,6)),
                             'criterion' :['gini', 'entropy', 'log_loss'],
                             'splitter': ['best', 'random']}
             
             dtc = DecisionTreeClassifier(random_state=24)
-            grid_search_DTC = GridSearchCV(estimator=dtc, param_grid=param_grid_DTC, cv=10, verbose=True)
+            grid_search_DTC = GridSearchCV(estimator=dtc, param_grid=param_grid_DTC, cv=cv, verbose=True)
             grid_search_DTC.fit(X_train_DTC_std, y_train_DTC)
             st.write(f"Best score: {grid_search_DTC.best_score_:.2f} using {grid_search_DTC.best_params_}")
             #st.write("Best score: %f using %s" % (grid_search.best_score_, grid_search.best_params_))
@@ -2359,20 +2362,21 @@ def rfc_tab():
             st.write(valid_scaled_RFC_df)
 
 
-        # Select model hyperparameters (GridSearchCV or mannual)
+        # Select model hyperparameters (GridSearchCV or manual)
         st.subheader("It's time to choose hyperparameter your model!")
         hyper_method_RFC = st.radio("###### How would you like to select hyperparameters?", 
                                 ("GridSearchCV", "Yourself"), key="hyperparm_RFC")
 
         # GridSearchCV
         if hyper_method_RFC == "GridSearchCV":
+            cv = st.slider('###### Choose number of cross validation?', min_value=5, max_value=30, value=5, step=1, key="cv_number_rfc")
             param_grid_RFC = {'n_estimators': [50, 100, 200],
                             'max_features': ['sqrt', 'log2'],
                             'max_depth' : [2,3,4],
                             'criterion' :['gini', 'entropy']}
             
             rfc = RandomForestClassifier(random_state=24)
-            grid_search_RFC = GridSearchCV(estimator=rfc, param_grid=param_grid_RFC, cv=10, verbose=True)
+            grid_search_RFC = GridSearchCV(estimator=rfc, param_grid=param_grid_RFC, cv=cv, verbose=True)
             grid_search_RFC.fit(X_train_RFC_std, y_train_RFC)
             st.write(f"Best score: {grid_search_RFC.best_score_:.2f} using {grid_search_RFC.best_params_}")
             #st.write("Best score: %f using %s" % (grid_search.best_score_, grid_search.best_params_))
@@ -3066,13 +3070,14 @@ def nn_tab():
 
         # GridSearchCV
         if hyper_method_NN == "GridSearchCV":
+            cv = st.slider('###### Choose number of cross validation?', min_value=5, max_value=30, value=5, step=1, key="cv_number_rfc")
             param_grid_NN = {'batch_size': [50, 100, 200],
                             'epochs': [1, 10, 20]}
             
             # Create the KerasClassifier object with the create_model function
             model = KerasClassifier(build_fn=create_model, units=units, activation=activation,
                                     kernel_initializer=kernel_initializer, loss=loss, optimizer=optimizer)
-            grid_search_NN = GridSearchCV(estimator=model, param_grid=param_grid_NN, cv=10, verbose=True)
+            grid_search_NN = GridSearchCV(estimator=model, param_grid=param_grid_NN, cv=cv, verbose=True)
             grid_search_NN.fit(X_train_NN_std, y_train_NN)
             st.write(f"Best score: {grid_search_NN.best_score_:.2f} using {grid_search_NN.best_params_}")
 
