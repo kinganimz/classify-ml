@@ -162,7 +162,7 @@ def welcome_tab():
     st.markdown("Developed with Streamlit, this intuitive web app empowers you to explore data effortlessly and create predictive models using methods like: K Nearest Neighbors, Support Vector Machine, Decision Tree, Random Forest, and Neural Network")
     st.markdown("Uncover hidden patterns with Principal Component Analysis (PCA) and get insights in just a few clicks. Plus, generate a comprehensive score report in .xlsx format for easy download and sharing.")
     st.markdown(" ")
-    st.image('WELCOME_CLASSIFYML.png', caption="ClassiFy ML features",use_container_width=True)
+    st.image('WELCOME_CLASSIFYML.png', caption="ClassiFy ML features")
     st.markdown(" ")
     st.markdown('#### Take your data analysis to the next level with ClassiFy ML! 🚀')
     st.markdown("**I’d love to hear your thoughts!** 💬")
