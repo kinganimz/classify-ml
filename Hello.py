@@ -51,6 +51,10 @@ from reportlab.lib.pagesizes import letter
 from io import BytesIO
 from reportlab.platypus import Image
 from sklearn.tree import plot_tree
+from sklearn.preprocessing import MinMaxScaler
+from sklearn.model_selection import StratifiedShuffleSplit
+import plotly.express as px
+
 
 ## FUNCTIONS
 
@@ -66,21 +70,35 @@ def create_dataset(df, X, y=None):
 def separate_categorical(X_df, cat_variables):
     return pd.get_dummies(X_df, columns=cat_variables)
 
+
 # Function to split data
 @st.cache_data
 def split_data(X, y, method, split):
-    if method == "Scikit-learn (random)":
+    if method == "Random Split":
         return tts(X, y, test_size=split, random_state=42)
-    else:
+    if method == "Kennard-Stone":
         return ks(X, y, test_size=split, random_state=42)
-    
+    elif method == "Stratified Sampling":
+        sss = StratifiedShuffleSplit(n_splits=1, test_size=split, random_state=42)
+        train_idx, test_idx = next(sss.split(X, y))
+        return X.iloc[train_idx], X.iloc[test_idx], y.iloc[train_idx], y.iloc[test_idx]
+    else:
+        raise ValueError(f"Unknown method: {method}")
+
+
 # Function to standardize data
 @st.cache_data
-def standardize_data(X_train, X_test):
-    scaler = StandardScaler()
-    X_train = scaler.fit_transform(X_train)
-    X_test = scaler.transform(X_test)
-    return X_train, X_test
+def standardize_data(X_train, X_test, standMeth):
+    if standMeth == "Z-score normalization":
+        scaler = StandardScaler()
+        X_train = scaler.fit_transform(X_train)
+        X_test = scaler.transform(X_test)
+        return X_train, X_test
+    else:
+        scaler = MinMaxScaler()
+        X_train = scaler.fit_transform(X_train)
+        X_test = scaler.transform(X_test)
+        return X_train, X_test
 
 
 # Function to generate model statistics
@@ -144,7 +162,7 @@ def welcome_tab():
     st.markdown("Developed with Streamlit, this intuitive web app empowers you to explore data effortlessly and create predictive models using methods like: K Nearest Neighbors, Support Vector Machine, Decision Tree, Random Forest, and Neural Network")
     st.markdown("Uncover hidden patterns with Principal Component Analysis (PCA) and get insights in just a few clicks. Plus, generate a comprehensive score report in .xlsx format for easy download and sharing.")
     st.markdown(" ")
-    st.image('WELCOME_CLASSIFYML.png', caption="ClassiFy ML features",use_column_width=True)
+    st.image('WELCOME_CLASSIFYML.png', caption="ClassiFy ML features",use_container_width=True)
     st.markdown(" ")
     st.markdown('#### Take your data analysis to the next level with ClassiFy ML! 🚀')
     st.markdown("**I’d love to hear your thoughts!** 💬")
@@ -157,12 +175,69 @@ def welcome_tab():
     </a>
     """, unsafe_allow_html=True)
 
-    
+
+def tutorial():
+    st.header("📘 How to Use ClassiFy ML")
+    st.markdown("""
+    Welcome to **ClassiFy ML**, your one-stop platform for interactive machine learning analysis!  
+    Here's a quick tutorial to help you get started. 👇
+
+    #### Step 1: Upload Your Dataset  
+    On the **left sidebar**, under the **Data Upload** section, upload your dataset in `.xlsx` format.  
+    This dataset will be used across all modules of the app.
+
+    #### Step 2: Explore Data Quality  
+    Head over to the **📊 Data Quality** tab to:
+    - Check **missing values**,  
+    - Review **basic statistics**,  
+    - Visualize your dataset (e.g. histograms, bars, scatter plots)  
+    This helps you understand and choose strategy for your data before modeling.
+
+    #### Step 3A: Not Sure Which Model to Choose?  
+    If you're not sure which algorithm is best for your dataset, go to the **👨‍👩‍👦 Summary** tab.  
+    There, you’ll get a quick **overview and comparison of multiple models** (like KNN, SVM, Random Forest, etc.)  
+    – all automatically trained and evaluated on your dataset.
+       
+    #### Step 3B: Choose Your Modeling Method  
+    Pick one of the modeling tabs:  
+    - 🏘️ K-Nearest Neighbour (KNN)  
+    - 🎰 Support Vector Machine (SVM)  
+    - 🌱 Decision Tree  
+    - 🌳 Random Forest  
+    - 🕸️ Neural Network  
+
+    In each method tab, follow these steps:
+    - **Select your features** and define the target variable  
+    - **Choose a splitting method** (Random, Stratified Sampling, or Kennard-Stone)  
+    - **Choose standardization method** (if needed)  
+    - **Tune model hyperparameters**  
+    - **Train and evaluate your model** using accuracy, confusion matrix, etc.  
+    - **Check the model’s Applicability Domain**  
+    - **Test your model on new, external data** if available  
+
+    #### Step 4: Export Your Results  
+    Once you're satisfied:
+    - 📥 Export a **detailed report in PDF format**  
+    - 📊 Download **Excel (.xlsx)** output with predictions and metrics
+
+    ---
+    """)
+
+    st.subheader("🎥 Video Tutorial (Coming Soon)")
+    st.info("A short video walkthrough will be available here soon to demonstrate the full workflow step-by-step.")
+
+    with st.expander("📌 FAQ and Tips"):
+        st.markdown("""
+        - You can upload a new dataset anytime from the sidebar.
+        - PCA (Principal Component Analysis) is useful before modeling if you want to bring you analysis on higher level!
+        - Applicability Domain helps ensure your model isn’t making predictions outside its scope.
+        """)
+
+
 def data_preprocessing_tab():
 
+    st.title("Data Quality")
     st.markdown('##### Explore the dataset chosen by you and check how it presents')
-    #st.sidebar.header("Data transfer")
-    #uploaded_file = st.sidebar.file_uploader("Upload your file here...", type=['xlsx'])
 
     st.subheader("Sheet view")
     st.markdown(f"##### Currently Selected: `{sheet_selector}`")
@@ -176,10 +251,31 @@ def data_preprocessing_tab():
     st.dataframe(df_stat)
 
     ## NA values
-    st.markdown("##### Verity the number of missing values ")
+    st.markdown("##### Verify the number of missing values ")
     count_nan_in_df = df.isnull().sum()
-    data_na = pd.DataFrame(count_nan_in_df, columns=["NA values"])
+
+    data_na = pd.DataFrame({
+        "Column": count_nan_in_df.index,
+        "NA values": count_nan_in_df.values
+    })
+    st.markdown(
+    """
+    <div style="display: flex; justify-content: center;">
+        <div style="width: 50%;">
+    """,
+    unsafe_allow_html=True
+)
     st.dataframe(data_na)
+    st.markdown("</div></div>", unsafe_allow_html=True)
+
+    fig = px.bar(data_na, x="Column", y="NA values",
+                title="Missing Values by Column",
+                labels={"NA values": "Count of NA values", "Column": "Columns"},
+                text="NA values")
+
+    fig.update_layout(xaxis_tickangle=-45)
+    st.plotly_chart(fig)
+
 
     # Data visualization
     st.subheader("Data visualization")
@@ -280,11 +376,18 @@ def pca_tab():
         st.warning("Ensure all selected descriptors are in numeric or boolean format.")
         execute_pca = False
     else:
-        # Standardization
+        # Standardization 
         st.subheader("Standardize your data")
-        st.markdown("Standardize the data - don't worry, I'll do it for you!")
-        df_st = StandardScaler().fit_transform(df_2_PCA)
-        df_std = pd.DataFrame(df_st, index=df_2_PCA.index, columns=df_2_PCA.columns)
+        st.markdown("Standardize the data for better model performance.")
+        standard = st.radio("###### Which data normalization method do you choose?", 
+                            ("Z-score normalization", "Min-Max Scaling"), key="standard_KNN")
+        if standard == "Z-score normalization":
+            df_st = StandardScaler().fit_transform(df_2_PCA)
+            df_std = pd.DataFrame(df_st, index=df_2_PCA.index, columns=df_2_PCA.columns)
+        else:
+            df_st = MinMaxScaler().fit_transform(df_2_PCA)
+            df_std = pd.DataFrame(df_st, index=df_2_PCA.index, columns=df_2_PCA.columns)
+
         st.markdown("##### Your standardized dataset")
         st.write(df_std)
 
@@ -601,7 +704,7 @@ def knn_tab():
 
     with col1:
         method_KNN = st.radio("###### Which method do you choose?", 
-                                ("Scikit-learn (random)", "Kennard Stone"), key="method_split_KNN")
+                                ("Random Split", "Kennard-Stone", "Stratified Sampling"), key="method_split_KNN")
     
     with col2:
         split_KNN = (st.slider("###### How much of the harvest will you devote to testing the model? [%]", min_value=10, max_value=40, key="split_KNN"))/100
@@ -609,7 +712,9 @@ def knn_tab():
 
 
     # Splitting
-    if method_KNN == "Scikit-learn (random)":
+    if method_KNN == "Random Split":
+        X_train_KNN, X_test_KNN, y_train_KNN, y_test_KNN = split_data(X_df_2_KNN, without_NA_y_KNN, method_KNN, split_KNN)
+    if method_KNN == "Kennard-Stone":
         X_train_KNN, X_test_KNN, y_train_KNN, y_test_KNN = split_data(X_df_2_KNN, without_NA_y_KNN, method_KNN, split_KNN)
     else:
         X_train_KNN, X_test_KNN, y_train_KNN, y_test_KNN = split_data(X_df_2_KNN, without_NA_y_KNN, method_KNN, split_KNN)
@@ -650,7 +755,14 @@ def knn_tab():
         # Standardization
         st.subheader("Standardize your data")
         st.markdown("Standardize the data for better model performance.")
-        X_train_KNN_std, X_test_KNN_std = standardize_data(X_train_KNN, X_test_KNN)
+        standard = st.radio("###### Which data normalization method do you choose?", 
+                                    ("Z-score normalization", "Min-Max Scaling"), key="standard_KNN")
+        
+        if standard == "Z-score normalization":
+            X_train_KNN_std, X_test_KNN_std = standardize_data(X_train_KNN, X_test_KNN, standard)
+        else: 
+            X_train_KNN_std, X_test_KNN_std = standardize_data(X_train_KNN, X_test_KNN, standard)
+
         col1, col2 = st.columns(2)
         with col1:
             st.markdown("##### Training Set (Standardized)")
@@ -1160,14 +1272,16 @@ def svm_tab():
 
     with col1:
         method_SVM = st.radio("###### Which method do you choose?", 
-                                ("Scikit-learn (random)", "Kennard Stone"), key="method_split_SVM")
+                                ("Random Split", "Kennard-Stone", "Stratified Sampling"), key="method_split_SVM")
     
     with col2:
         split_SVM = (st.slider("###### How much of the harvest will you devote to testing the model? [%]", min_value=10, max_value=40, key="split_SVM"))/100
 
 
     # Splitting
-    if method_SVM == "Scikit-learn (random)":
+    if method_SVM == "Random Split":
+        X_train_SVM, X_test_SVM, y_train_SVM, y_test_SVM = split_data(X_df_2_SVM, without_NA_y_SVM, method_SVM, split_SVM)
+    if method_SVM == "Kennard-Stone":
         X_train_SVM, X_test_SVM, y_train_SVM, y_test_SVM = split_data(X_df_2_SVM, without_NA_y_SVM, method_SVM, split_SVM)
     else:
         X_train_SVM, X_test_SVM, y_train_SVM, y_test_SVM = split_data(X_df_2_SVM, without_NA_y_SVM, method_SVM, split_SVM)
@@ -1205,7 +1319,13 @@ def svm_tab():
         # Standardization
         st.subheader("Standardize your data")
         st.markdown("Standardize the data for better model performance.")
-        X_train_SVM_std, X_test_SVM_std = standardize_data(X_train_SVM, X_test_SVM)
+        standard = st.radio("###### Which data normalization method do you choose?", 
+                                    ("Z-score normalization", "Min-Max Scaling"), key="standard_SVM")
+        
+        if standard == "Z-score normalization":
+            X_train_SVM_std, X_test_SVM_std = standardize_data(X_train_SVM, X_test_SVM, standard)
+        else: 
+            X_train_SVM_std, X_test_SVM_std = standardize_data(X_train_SVM, X_test_SVM, standard)
 
         col1, col2 = st.columns(2)
         with col1:
@@ -1722,17 +1842,20 @@ def dtc_tab():
 
     with col1:
         method_DTC = st.radio("###### Which method do you choose?", 
-                                ("Scikit-learn (random)", "Kennard Stone"), key="method_split_DTC")
+                                ("Random Split", "Kennard-Stone", "Stratified Sampling"), key="method_split_DTC")
     
     with col2:
         split_DTC = (st.slider("###### How much of the harvest will you devote to testing the model? [%]", min_value=10, max_value=40, key="split_DTC"))/100
 
 
     # Splitting
-    if method_DTC == "Scikit-learn (random)":
+    if method_DTC == "Random Split":
+        X_train_DTC, X_test_DTC, y_train_DTC, y_test_DTC = split_data(X_df_2_DTC, without_NA_y_DTC, method_DTC, split_DTC)
+    if method_DTC == "Kennard-Stone":
         X_train_DTC, X_test_DTC, y_train_DTC, y_test_DTC = split_data(X_df_2_DTC, without_NA_y_DTC, method_DTC, split_DTC)
     else:
         X_train_DTC, X_test_DTC, y_train_DTC, y_test_DTC = split_data(X_df_2_DTC, without_NA_y_DTC, method_DTC, split_DTC)
+
 
     st.markdown(' ')
     st.subheader("View your training and validation sets")
@@ -1768,7 +1891,13 @@ def dtc_tab():
         # Standardization
         st.subheader("Standardize your data")
         st.markdown("Standardize the data for better model performance.")
-        X_train_DTC_std, X_test_DTC_std = standardize_data(X_train_DTC, X_test_DTC)
+        standard = st.radio("###### Which data normalization method do you choose?", 
+                                    ("Z-score normalization", "Min-Max Scaling"), key="standard_DTC")
+        
+        if standard == "Z-score normalization":
+            X_train_DTC_std, X_test_DTC_std = standardize_data(X_train_DTC, X_test_DTC, standard)
+        else: 
+            X_train_DTC_std, X_test_DTC_std = standardize_data(X_train_DTC, X_test_DTC, standard)
 
         col1, col2 = st.columns(2)
         with col1:
@@ -2302,17 +2431,20 @@ def rfc_tab():
 
     with col1:
         method_RFC = st.radio("###### Which method do you choose?", 
-                                ("Scikit-learn (random)", "Kennard Stone"), key="method_split_RFC")
+                                ("Random Split", "Kennard-Stone", "Stratified Sampling"), key="method_split_RFC")
     
     with col2:
         split_RFC = (st.slider("###### How much of the harvest will you devote to testing the model? [%]", min_value=10, max_value=40, key="split_RFC"))/100
 
 
     # Splitting
-    if method_RFC == "Scikit-learn (random)":
+    if method_RFC == "Random Split":
+        X_train_RFC, X_test_RFC, y_train_RFC, y_test_RFC = split_data(X_df_2_RFC, without_NA_y_RFC, method_RFC, split_RFC)
+    if method_RFC == "Kennard-Stone":
         X_train_RFC, X_test_RFC, y_train_RFC, y_test_RFC = split_data(X_df_2_RFC, without_NA_y_RFC, method_RFC, split_RFC)
     else:
         X_train_RFC, X_test_RFC, y_train_RFC, y_test_RFC = split_data(X_df_2_RFC, without_NA_y_RFC, method_RFC, split_RFC)
+
 
     st.markdown(' ')
     st.subheader("View your training and validation sets")
@@ -2348,7 +2480,13 @@ def rfc_tab():
         # Standardization
         st.subheader("Standardize your data")
         st.markdown("Standardize the data for better model performance.")
-        X_train_RFC_std, X_test_RFC_std = standardize_data(X_train_RFC, X_test_RFC)
+        standard = st.radio("###### Which data normalization method do you choose?", 
+                                    ("Z-score normalization", "Min-Max Scaling"), key="standard_RFC")
+        
+        if standard == "Z-score normalization":
+            X_train_RFC_std, X_test_RFC_std = standardize_data(X_train_RFC, X_test_RFC, standard)
+        else: 
+            X_train_RFC_std, X_test_RFC_std = standardize_data(X_train_RFC, X_test_RFC, standard)
 
         col1, col2 = st.columns(2)
         with col1:
@@ -2972,17 +3110,20 @@ def nn_tab():
 
     with col1:
         method_NN = st.radio("###### Which method do you choose?", 
-                                ("Scikit-learn (random)", "Kennard Stone"), key="method_split_NN")
+                                ("Random Split", "Kennard-Stone", "Stratified Sampling"), key="method_split_NN")
     
     with col2:
         split_NN = (st.slider("###### How much of the harvest will you devote to testing the model? [%]", min_value=10, max_value=40, key="split_NN"))/100
 
 
     # Splitting
-    if method_NN == "Scikit-learn (random)":
+    if method_NN == "Random Split":
+        X_train_NN, X_test_NN, y_train_NN, y_test_NN = split_data(X_df_2_NN, without_NA_y_NN, method_NN, split_NN)
+    if method_NN == "Kennard-Stone":
         X_train_NN, X_test_NN, y_train_NN, y_test_NN = split_data(X_df_2_NN, without_NA_y_NN, method_NN, split_NN)
     else:
         X_train_NN, X_test_NN, y_train_NN, y_test_NN = split_data(X_df_2_NN, without_NA_y_NN, method_NN, split_NN)
+
 
     st.markdown(' ')
     st.subheader("View your training and validation sets")
@@ -3017,7 +3158,13 @@ def nn_tab():
         # Standardization
         st.subheader("Standardize your data")
         st.markdown("Standardize the data for better model performance.")
-        X_train_NN_std, X_test_NN_std = standardize_data(X_train_NN, X_test_NN)
+        standard = st.radio("###### Which data normalization method do you choose?", 
+                                    ("Z-score normalization", "Min-Max Scaling"), key="standard_NN")
+        
+        if standard == "Z-score normalization":
+            X_train_NN_std, X_test_NN_std = standardize_data(X_train_NN, X_test_NN, standard)
+        else: 
+            X_train_NN_std, X_test_NN_std = standardize_data(X_train_NN, X_test_NN, standard)
 
         col1, col2 = st.columns(2)
         with col1:
@@ -3552,17 +3699,20 @@ def summary():
 
     with col1:
         method_S = st.radio("###### Which method do you choose?", 
-                                ("Scikit-learn (random)", "Kennard Stone"), key="method_split_S")
+                                ("Random Split", "Kennard-Stone", "Stratified Sampling"), key="method_split_S")
     
     with col2:
         split_S = (st.slider("###### How much of the harvest will you devote to testing the model? [%]", min_value=10, max_value=40, key="split_S"))/100
 
 
     # Splitting
-    if method_S == "Scikit-learn (random)":
+    if method_S == "Random Split":
+        X_train_S, X_test_S, y_train_S, y_test_S = split_data(X_df_2_S, without_NA_y_S, method_S, split_S)
+    if method_S == "Kennard-Stone":
         X_train_S, X_test_S, y_train_S, y_test_S = split_data(X_df_2_S, without_NA_y_S, method_S, split_S)
     else:
         X_train_S, X_test_S, y_train_S, y_test_S = split_data(X_df_2_S, without_NA_y_S, method_S, split_S)
+
 
     st.markdown(' ')
     st.subheader("View your training and validation sets")
@@ -3597,7 +3747,13 @@ def summary():
         # Standardization
         st.subheader("Standardize your data")
         st.markdown("Standardize the data for better model performance.")
-        X_train_S_std, X_test_S_std = standardize_data(X_train_S, X_test_S)
+        standard = st.radio("###### Which data normalization method do you choose?", 
+                                    ("Z-score normalization", "Min-Max Scaling"), key="standard_S")
+        
+        if standard == "Z-score normalization":
+            X_train_S_std, X_test_S_std = standardize_data(X_train_S, X_test_S, standard)
+        else: 
+            X_train_S_std, X_test_S_std = standardize_data(X_train_S, X_test_S, standard)
 
         col1, col2 = st.columns(2)
         with col1:
@@ -4040,7 +4196,7 @@ def summary():
 
 st.sidebar.image("classifyml-logo.png",  width=200)
 st.sidebar.header("Choose your goal")
-tabs = ["🔎 Welcome in ClassiFy ML", "📊 Data Preprocessing", "💫 Principal Component Analysis (PCA)", "🏘️ K-Nearest Neighbour (KNN)", "🎰 Support Vector Machine (SVM)", "🌱 Decision Tree", "🌳 Random Forest", "🕸️ Neural Network", "👨‍👩‍👦 Summary"]
+tabs = ["🔎 Welcome in ClassiFy ML", "📘 How to Use It?", "📊 Data Quality", "💫 Principal Component Analysis (PCA)", "🏘️ K-Nearest Neighbour (KNN)", "🎰 Support Vector Machine (SVM)", "🌱 Decision Tree", "🌳 Random Forest", "🕸️ Neural Network", "👨‍👩‍👦 Summary"]
 active_tab = st.sidebar.selectbox("Select a tab:", tabs)  # Let the user choose the active tab
 
 st.sidebar.markdown("----")
@@ -4071,7 +4227,10 @@ if uploaded_file is not None:
     if active_tab == "🔎 Welcome in ClassiFy ML":
         welcome_tab()
 
-    elif active_tab == "📊 Data Preprocessing":
+    elif active_tab == "📘 How to Use It?":
+        tutorial()
+
+    elif active_tab == "📊 Data Quality":
         data_preprocessing_tab()
 
     elif active_tab == "💫 Principal Component Analysis (PCA)":
@@ -4101,7 +4260,10 @@ else:
     if active_tab == "🔎 Welcome in ClassiFy ML":
         welcome_tab()
 
-    elif active_tab == "📊 Data Preprocessing":
+    elif active_tab == "📘 How to Use It?":
+        tutorial()
+
+    elif active_tab == "📊 Data Quality":
         st.title('Data preprocessing')
         st.markdown('##### Explore the dataset chosen by you and check how it presents')
         st.markdown("Submit your data in the left section to see what the data looks like!")
@@ -4140,4 +4302,5 @@ else:
         st.title("👨‍👩‍👦 Summary")
         st.markdown('##### Make a predictive models using all 5 methods and compare all of them')
         st.markdown("Submit your data in the left section to see what the data looks like!")
+
 
