@@ -54,6 +54,7 @@ from sklearn.tree import plot_tree
 from sklearn.preprocessing import MinMaxScaler
 from sklearn.model_selection import StratifiedShuffleSplit
 import plotly.express as px
+from xgboost import XGBClassifier
 
 
 ## FUNCTIONS
@@ -3047,6 +3048,661 @@ def rfc_tab():
             st.subheader(' ')
 
 
+
+
+def xgboost_tab():
+
+    st.title("XGBoost")
+    st.markdown('##### Make a predictive model using the XGBoost method')
+
+    # Choose descriptors to model + observed value/effect
+    st.subheader('Create your dataset to modeling')
+
+    # X variables
+    X_XGB = st.multiselect('Select descriptors to build the model:', df.columns, key="x_multiselect_XGB")
+
+    # y variable
+    y_XGB = st.multiselect('Select the property you would like to model:', df.columns, key="y_multiselect_XGB")
+
+    # Add a flag to control the flow of execution
+    execute_xgb = True
+
+    # Combine selected variables
+    df_XGB = create_dataset(df, X_XGB, y_XGB)
+    st.markdown('##### The dataset created by you:')
+    st.write(df_XGB)
+
+
+    # Removing NA values
+    without_NA_XGB = df_XGB.dropna(axis=0, how="any")
+    st.markdown(" ")
+    st.markdown('##### Your dataset after removing NA values looks like this:')
+
+    if st.button('View dataset', key='button_NA_XGB'):
+        st.write(without_NA_XGB)
+    else:
+        st.write(' ')
+
+    without_NA_X_XGB = without_NA_XGB.drop(columns=y_XGB)
+    without_NA_y_XGB = without_NA_XGB[y_XGB]
+
+
+    # Categorical variables
+    st.subheader('Categorical variables converting')
+    cat_variables_XGB = st.multiselect('Choose categorical variable(s) to separate descriptors:', without_NA_X_XGB.columns, key="cat_var_XGB")
+
+    if cat_variables_XGB:
+        X_df_2_XGB = separate_categorical(without_NA_X_XGB, cat_variables_XGB)
+        st.markdown(" ")
+        st.markdown('##### Your dataset with categorical variables separated looks like this:')
+        all_df_XGB = X_df_2_XGB.join(without_NA_y_XGB)
+        st.write(all_df_XGB)
+    else:
+        st.markdown('##### You have not selected any categorical variable to separate. Your dataset remains unchanged:')
+        X_df_2_XGB = without_NA_X_XGB
+        all_df_XGB = X_df_2_XGB.join(without_NA_y_XGB)
+        st.write(all_df_XGB)
+
+
+    # Data splitting (train and test sets)
+    st.subheader("It's time to split your data for traning and validation sets!")
+    # Choose a method & split data
+
+    col1, col2 = st.columns(2)
+
+    with col1:
+        method_XGB = st.radio("###### Which method do you choose?", 
+                                ("Random Split", "Kennard-Stone", "Stratified Sampling"), key="method_split_XGB")
+    
+    with col2:
+        split_XGB = (st.slider("###### How much of the harvest will you devote to testing the model? [%]", min_value=10, max_value=40, key="split_XGB"))/100
+
+
+    # Splitting
+    if method_XGB == "Random Split":
+        X_train_XGB, X_test_XGB, y_train_XGB, y_test_XGB = split_data(X_df_2_XGB, without_NA_y_XGB, method_XGB, split_XGB)
+    if method_XGB == "Kennard-Stone":
+        X_train_XGB, X_test_XGB, y_train_XGB, y_test_XGB = split_data(X_df_2_XGB, without_NA_y_XGB, method_XGB, split_XGB)
+    else:
+        X_train_XGB, X_test_XGB, y_train_XGB, y_test_XGB = split_data(X_df_2_XGB, without_NA_y_XGB, method_XGB, split_XGB)
+
+
+    st.markdown(' ')
+    st.subheader("View your training and validation sets")
+    col1, col2 = st.columns(2)
+    with col1:
+        st.markdown("##### Training Set")
+        train_set_XGB = X_train_XGB.join(y_train_XGB)
+        if st.button('View Training Set', key="button_train_set_XGB"):
+            st.write(train_set_XGB)
+        else:
+            st.write(' ')
+    with col2:
+        st.markdown("##### Validation Set")
+        valid_set_XGB = X_test_XGB.join(y_test_XGB)
+        if st.button('View Validation Set', key="button_valid_set_XGB"):
+            st.write(valid_set_XGB)
+        else:
+            st.write(' ')
+
+    # Instead of error, show messages below  
+    if not X_XGB:
+        st.warning("Please select descriptors to build the model.")
+        execute_xgb = False
+    elif not y_XGB:
+        st.warning("Please select the property you'd like to model.")
+        execute_xgb = False
+    elif not all(X_df_2_XGB.dtypes.apply(lambda x: np.issubdtype(x, np.number) or np.issubdtype(x, np.bool_))):
+        st.warning("Ensure all selected descriptors are either in numeric or boolean format.")
+        execute_xgb = False
+
+    if execute_xgb:             
+
+        # Standardization
+        st.subheader("Standardize your data")
+        st.markdown("Standardize the data for better model performance.")
+        standard = st.radio("###### Which data normalization method do you choose?", 
+                                    ("Z-score normalization", "Min-Max Scaling"), key="standard_XGB")
+        
+        if standard == "Z-score normalization":
+            X_train_XGB_std, X_test_XGB_std = standardize_data(X_train_XGB, X_test_XGB, standard)
+        else: 
+            X_train_XGB_std, X_test_XGB_std = standardize_data(X_train_XGB, X_test_XGB, standard)
+
+        col1, col2 = st.columns(2)
+        with col1:
+            st.markdown("##### Training Set (Standardized)")
+            train_scaled_XGB_df = pd.DataFrame(X_train_XGB_std)
+            st.write(train_scaled_XGB_df)
+
+        with col2:
+            st.markdown("##### Validation Set (Standardized)")
+            valid_scaled_XGB_df = pd.DataFrame(X_test_XGB_std)
+            st.write(valid_scaled_XGB_df)
+
+
+        # Select model hyperparameters (GridSearchCV or manual)
+        st.subheader("It's time to choose hyperparameter your model!")
+        hyper_method_XGB = st.radio("###### How would you like to select hyperparameters?", 
+                                ("GridSearchCV", "Yourself"), key="hyperparm_XGB")
+
+        # GridSearchCV
+        if hyper_method_XGB == "GridSearchCV":
+            cv = st.slider('###### Choose number of cross validation?', min_value=5, max_value=30, value=5, step=1, key="cv_number_xgb")
+            param_grid_XGB = {'n_estimators': [50, 100, 200, 300],
+                                'min_child_weight': [1, 5, 10],
+                                'gamma': [0.5, 1, 1.5, 2, 5],
+                                'subsample': [0.6, 0.8, 1.0],
+                                'colsample_bytree': [0.6, 0.8, 1.0],
+                                'max_depth': [3, 4, 5, 6]}
+            
+            xgb = XGBClassifier(learning_rate=0.02, objective='binary:logistic', silent=True, nthread=1, random_state=24)
+            grid_search_XGB = GridSearchCV(estimator=xgb, param_grid=param_grid_XGB, cv=cv, verbose=True)
+            grid_search_XGB.fit(X_train_XGB_std, y_train_XGB)
+            st.write(f"Best score: {grid_search_XGB.best_score_:.2f} using {grid_search_XGB.best_params_}")
+
+            # XGB model by gridsearchCV
+            rfc = XGBClassifier(**grid_search_XGB.best_params_, random_state=24)
+            rfc.fit(X_train_XGB_std, y_train_XGB)
+
+
+        # Mannual way
+        else:
+            col1, col2 = st.columns([0.5, 0.5])
+            with col1:
+                min_child_weight_XGB = st.radio('###### Choose min child weight::', 1, 10, 1, 1, key="min_child_weight_XGB") 
+                max_depth_XGB = st.slider('###### Choose the maximum depth of the tree:', 3, 6, 1, 1, key="max_depth_XGBC")
+                gamma_XGB = st.radio('###### Choose gamma parameter:', 0.5, 5, 0.5, 1, key="gamma_XGB") 
+
+            with col2:
+                colsample_bytree_XGB = st.number_input('###### Choose colsample_bytree:', 0.6, 1.0, key="colsample_bytree_XGB")
+                subsample_XGB = st.number_input('###### Choose subsample:', 0.6, 1.0, key="subsample_XGB") 
+                n_estimators_XGB = st.number_input('Insert a number', 50, 300, key="n_estimators_XGB")
+
+            # Decision Tree model by user
+            xgb = XGBClassifier(min_child_weight=min_child_weight_XGB, gamma=gamma_XGB, colsample_bytree=colsample_bytree_XGB, subsample=subsample_XGB, n_estimators=n_estimators_XGB, max_depth=max_depth_XGB, learning_rate=0.02, objective='binary:logistic', silent=True, nthread=1, random_state=24)
+            xgb.fit(X_train_XGB_std, y_train_XGB)
+
+        # Predicted values
+        y_pred_XGB = xgb.predict(X_test_XGB_std)
+        y_pred_train_XGB = xgb.predict(X_train_XGB_std)
+
+
+        # Check the quality of the model
+        st.markdown(' ')
+        st.subheader("Let's check how our model is doing")
+        st.markdown("Below you can find calculated statistics, allowing you to assess the performance, as well as the correctness of the created predictive model.")
+
+
+        # Statistics
+        train_stats_XGB = generate_model_statistics(y_train_XGB, y_pred_train_XGB)
+        valid_stats_XGB = generate_model_statistics(y_test_XGB, y_pred_XGB)
+
+        # Plot confusion matrices side by side
+        # Display confusion matrices
+        st.subheader("Confusion Matrices")
+        cf_matrix_train, cf_matrix_valid, labels_train, labels_valid = generate_confusion_matrix_plot(y_train_XGB, y_pred_train_XGB, y_test_XGB, y_pred_XGB)
+
+        # Plot confusion matrices side by side
+        fig, ax = plt.subplots(nrows=1, ncols=2, figsize=(12, 4))
+
+        # color selecting for train confusion matrix
+        col1, col2 = st.columns([0.5, 0.5])
+        with col1:
+            color_train = st.color_picker('Pick a color for confusion matrix (training set)', '#5F9EA0', key="color_train")
+
+        # color selecting for valid confusion matrix
+        with col2:
+            color_valid = st.color_picker('Pick a color for confusion matrix (validation set)', '#8FBC8F', key="color_valid")
+
+        cmap = sns.light_palette(color_train, as_cmap=True)
+        sns.heatmap(cf_matrix_train, annot=labels_train, fmt='', cmap=cmap, ax=ax[0])
+        ax[0].set_title('Confusion matrix for training set')
+
+        cmap = sns.light_palette(color_valid, as_cmap=True)
+        sns.heatmap(cf_matrix_valid, annot=labels_valid, fmt='', cmap=cmap, ax=ax[1])
+        ax[1].set_title('Confusion matrix for validation set')
+        st.pyplot(fig)
+
+        # Display model statistics
+        st.subheader("Model Statistics")
+        col1, col2 = st.columns([0.55,0.45])
+
+        with col1:
+            st.markdown("##### Training Set")
+            st.markdown(f"Accuracy: {train_stats_XGB[0]:.2f}")
+            st.markdown(f"Precision: {train_stats_XGB[1]:.2f}")
+            st.markdown(f"Recall: {train_stats_XGB[2]:.2f}")
+            st.markdown(f"F1 Score: {train_stats_XGB[3]:.2f}")
+            st.markdown(f"MCC: {train_stats_XGB[4]:.2f}")
+
+        with col2:
+            st.markdown("##### Validation Set")
+            st.markdown(f"Accuracy: {valid_stats_XGB[0]:.2f}")
+            st.markdown(f"Precision: {valid_stats_XGB[1]:.2f}")
+            st.markdown(f"Recall: {valid_stats_XGB[2]:.2f}")
+            st.markdown(f"F1 Score: {valid_stats_XGB[3]:.2f}")
+            st.markdown(f"MCC: {valid_stats_XGB[4]:.2f}")
+
+        # Applicability Domain
+        st.subheader(" ")
+        st.subheader("Applicability Domain")
+        AD_button_XGB = st.radio('##### Which AD method you would like to try?', ('PCA boundary box', 'Euclidean distance'), key="AD_button_XGB")
+        if AD_button_XGB == 'PCA boundary box':
+            pca_AD = PCA()
+            pca_AD.fit(X_train_XGB_std)
+            pca_data_AD = pca_AD.transform(X_train_XGB_std)
+
+            pca_AD_test = PCA()
+            pca_AD_test.fit(X_test_XGB_std)
+            pca_data_AD_test = pca_AD.transform(X_test_XGB_std)
+
+            scores_AD = pd.DataFrame(pca_data_AD, columns=train_scaled_XGB_df.columns, index=train_scaled_XGB_df.index)
+            scores_AD_test = pd.DataFrame(pca_data_AD_test, columns=valid_scaled_XGB_df.columns, index=valid_scaled_XGB_df.index)
+
+            min_PC1 = scores_AD.iloc[:,0].min()
+            max_PC1 = scores_AD.iloc[:,0].max()
+
+            min_PC2 = scores_AD.iloc[:,1].min()
+            max_PC2 = scores_AD.iloc[:,1].max()
+
+            fig, ax = plt.subplots()
+            sns.set_style("whitegrid")
+            sns.scatterplot(x=scores_AD.iloc[:,0], y=scores_AD.iloc[:,1], ax=ax, c='steelblue',  marker="o", s=85, alpha=0.60)
+            sns.scatterplot(x=scores_AD_test.iloc[:,0], y=scores_AD_test.iloc[:,1], ax=ax, c='darkseagreen', marker="s", s=85, alpha=0.60)
+            plt.axvline(min_PC1, c='gray', linestyle='--')
+            plt.axvline(max_PC1, c='gray', linestyle='--')
+            plt.axhline(min_PC2, c='gray', linestyle='--')
+            plt.axhline(max_PC2, c='gray', linestyle='--')
+            plt.xlabel("PC1", fontsize=12)
+            plt.ylabel("PC2", fontsize=12)
+            plt.legend(['Training set', 'Validation set'], loc='center left', bbox_to_anchor=(1.0, 0.5))
+            plt.grid(True)
+            st.pyplot(fig)
+
+        else:
+            # Euclidean distances
+            centroid = X_train_XGB_std.mean(axis=0)
+            # Calculate euclidean distance for both sets
+            distances_train = np.array([euclidean(x, centroid) for x in X_train_XGB_std])
+            distances_test = np.array([euclidean(x, centroid) for x in X_test_XGB_std])
+            # Create indexes for distances
+            distances_train_index = range(len(distances_train))
+            distances_test_index = range(len(distances_test))
+
+            # Set up threshold based on mean distance + 2 * standard deviation
+            threshold = distances_train.mean() + 2 * distances_train.std()
+            out_of_AD_test = distances_test > threshold
+
+            fig, ax = plt.subplots()
+            sns.set_style("whitegrid")
+
+            # Traning set (inside AD)
+            sns.scatterplot(
+                x=distances_train_index,
+                y=distances_train,
+                ax=ax,
+                c='steelblue',
+                marker="o",
+                s=85,
+                alpha=0.60,
+                label='Training set'
+            )
+
+            # Validation set (inside AD)
+            sns.scatterplot(
+                x=[i for i, out in zip(distances_test_index, out_of_AD_test) if not out],
+                y=[dist for dist, out in zip(distances_test, out_of_AD_test) if not out],
+                ax=ax,
+                c='darkseagreen',
+                marker="s",
+                s=85,
+                alpha=0.60,
+                label='Validation set (In AD)'
+            )
+
+            # Validation set (outside AD)
+            sns.scatterplot(
+                x=[i for i, out in zip(distances_test_index, out_of_AD_test) if out],
+                y=[dist for dist, out in zip(distances_test, out_of_AD_test) if out],
+                ax=ax,
+                c='red',
+                marker="x",
+                s=85,
+                alpha=0.60,
+                label='Validation set (Out of AD)'
+            )
+
+            plt.axhline(threshold, color='gray', linestyle='--', label=f'Threshold = {threshold:.2f}')
+            plt.xlabel("Index", fontsize=12)
+            plt.ylabel("Euclidean Distance", fontsize=12)
+            plt.legend(loc='center left', bbox_to_anchor=(1.0, 0.5))
+            plt.grid(True)
+            st.pyplot(fig)
+
+
+        # Prepare to report
+        counts_XGB = without_NA_y_XGB.value_counts().tolist()
+        column_names_list = X_df_2_XGB.columns
+        output_str_XGB = ",\n".join(column_names_list)
+        split_RFC_train = 1 - split_XGB
+
+
+        st.subheader('Download all excel files and report!')
+        # Function to generate a PDF report
+        def generate_report_RFC():
+
+            doc = SimpleDocTemplate("XGB_model_report.pdf", pagesize=letter)
+            story = []
+
+            # Header
+            styles = getSampleStyleSheet()
+            story.append(Paragraph("Model Evaluation Report - RFC", styles["Title"]))
+            story.append(Spacer(1, 12))
+
+            # Data
+            story.append(Paragraph("Dataset", styles["Heading3"]))
+            story.append(Paragraph(f"Objects: {X_df_2_XGB.shape[0]}", styles["Normal"]))
+            story.append(Paragraph(f"Descriptors: {X_df_2_XGB.shape[1]}", styles["Normal"]))
+            story.append(Paragraph(f"Classes: Negative ({counts_XGB[0]}), Positive ({counts_XGB[1]})", styles["Normal"]))
+            story.append(Paragraph(f"Descriptors - names: {output_str_XGB}", styles["Normal"]))
+            story.append(Spacer(1, 12))
+           
+            # Split dat
+            story.append(Paragraph("Data split", styles["Heading3"]))
+            story.append(Paragraph(f"Method: {method_XGB}", styles["Normal"]))
+            if hyper_method_XGB == "GridSearchCV":
+                story.append(Paragraph(f"Best hyperparameters: {grid_search_XGB.best_params_}", styles["Normal"]))
+            else:
+                story.append(Paragraph(f"min_child_weight: {min_child_weight_XGB}", styles["Normal"]))
+                story.append(Paragraph(f"n_estimators: {n_estimators_XGB}", styles["Normal"]))
+                story.append(Paragraph(f"max_depth: {max_depth_XGB}", styles["Normal"]))
+                story.append(Paragraph(f"colsample_bytree: {colsample_bytree_XGB}", styles["Normal"]))
+                story.append(Paragraph(f"gamma: {gamma_XGB}", styles["Normal"]))
+                story.append(Paragraph(f"subsample: {subsample_XGB}", styles["Normal"]))
+                story.append(Paragraph(f"learning_rate: {0.02}", styles["Normal"]))
+                story.append(Paragraph(f"nthread: {1}", styles["Normal"]))
+                story.append(Paragraph(f"objective: {'binary:logistic'}", styles["Normal"]))
+                story.append(Paragraph(f"random_state: {42}", styles["Normal"]))
+            story.append(Spacer(1, 12))
+
+            # Confusion Matrices
+            story.append(Paragraph("Confusion Matrices", styles["Heading3"]))
+            fig, ax = plt.subplots(nrows=1, ncols=2, figsize=(12, 4))
+
+            cmap = sns.light_palette(color_train, as_cmap=True)
+            sns.heatmap(cf_matrix_train, annot=labels_train, fmt='', cmap=cmap, ax=ax[0])
+            ax[0].set_title('Confusion matrix for training set')
+
+            cmap = sns.light_palette(color_valid, as_cmap=True)
+            sns.heatmap(cf_matrix_valid, annot=labels_valid, fmt='', cmap=cmap, ax=ax[1])
+            ax[1].set_title('Confusion matrix for validation set')
+
+            buffer = BytesIO()
+            plt.savefig(buffer, format="png", dpi=300)
+            plt.close(fig)
+
+            buffer.seek(0)
+            img = buffer.read()
+            buffer.close()
+            story.append(Spacer(1, 12))
+            story.append(Paragraph("Confusion matrices for training and validation sets:", styles["Normal"]))
+            story.append(Spacer(1, 12))
+            story.append(Image(BytesIO(img), 500, 200))
+            story.append(Spacer(1, 12))
+
+            # Model Statistics
+            story.append(Paragraph("Model Statistics", styles["Heading3"]))
+            data = [
+                ["Statistic", "Training Set", "Validation Set"],
+                ["Accuracy", f"{train_stats_XGB[0]:.2f}", f"{valid_stats_XGB[0]:.2f}"],
+                ["Precision", f"{train_stats_XGB[1]:.2f}", f"{valid_stats_XGB[1]:.2f}"],
+                ["Recall", f"{train_stats_XGB[2]:.2f}", f"{valid_stats_XGB[2]:.2f}"],
+                ["F1 Score", f"{train_stats_XGB[3]:.2f}", f"{valid_stats_XGB[3]:.2f}"],
+                ["MCC", f"{train_stats_XGB[4]:.2f}", f"{valid_stats_XGB[4]:.2f}"]
+            ]
+
+            t = Table(data)
+            t.setStyle(TableStyle([('BACKGROUND', (0, 0), (-1, 0), '#8a8a8a'),
+                                ('TEXTCOLOR', (0, 0), (-1, 0), '#ffffff'),
+                                ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+                                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                                ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+                                ('BACKGROUND', (0, 1), (-1, -1), '#f7f7f7'),
+                                ('GRID', (0, 0), (-1, -1), 1, '#a0a0a0'),
+                                ]))
+            story.append(t)
+            story.append(Spacer(1, 12))
+
+
+            # Applicability Domain
+            story.append(Paragraph("Applicability Domain (AD)", styles["Heading3"]))
+            if AD_button_XGB == 'PCA boundary box':
+                fig, ax = plt.subplots()
+                sns.set_style("whitegrid")
+                sns.scatterplot(x=scores_AD.iloc[:, 0], y=scores_AD.iloc[:, 1], ax=ax, c='steelblue', marker="o", s=85, alpha=0.60)
+                sns.scatterplot(x=scores_AD_test.iloc[:, 0], y=scores_AD_test.iloc[:, 1], ax=ax, c='darkseagreen', marker="s", s=85, alpha=0.60)
+                plt.axvline(min_PC1, c='gray', linestyle='--')
+                plt.axvline(max_PC1, c='gray', linestyle='--')
+                plt.axhline(min_PC2, c='gray', linestyle='--')
+                plt.axhline(max_PC2, c='gray', linestyle='--')
+                plt.xlabel("PC1")
+                plt.ylabel("PC2")
+                plt.title("PCA Boundary Box for Applicability Domain")
+            else:
+                # Euclidean distance plot
+                fig, ax = plt.subplots()
+                sns.set_style("whitegrid")
+                sns.scatterplot(x=range(len(distances_test)), y=distances_test, c='darkseagreen', marker="s", s=85, alpha=0.60)
+                plt.axhline(threshold, color='gray', linestyle='--', label=f'Threshold = {threshold:.2f}')
+                plt.xlabel("Sample Index")
+                plt.ylabel("Euclidean Distance")
+                plt.title("Euclidean Distance for Applicability Domain")
+
+            ad_buffer = BytesIO()
+            plt.savefig(ad_buffer, format="png", dpi=300)
+            plt.close(fig)
+
+            ad_buffer.seek(0)
+            ad_img = ad_buffer.read()
+            ad_buffer.close()
+            story.append(Image(BytesIO(ad_img), 500, 400))
+            story.append(Spacer(1, 12))
+
+            doc.build(story)
+
+
+        # Generate and download report
+        generate_report_RFC()
+
+        ## Download generated report
+        st.download_button(
+            label="Download Report",
+            data=open("XGB_model_report.pdf", "rb").read(),
+            file_name="XGB_model_report.pdf",
+            mime='application/pdf',
+            key="button_report_RFC"
+        )
+
+
+        # Download excel file
+        excel_buffer = BytesIO()
+        excel_files = download_excel_files(excel_buffer, df, without_NA_XGB, all_df_XGB, train_set_XGB, valid_set_XGB, train_scaled_XGB_df, valid_scaled_XGB_df)
+        st.download_button(
+            label='Download Excel',
+            data=excel_buffer,
+            file_name='XGB_excel.xlsx',
+            mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            key="button_excel_XGB"
+        )
+
+        # NEW PREDICTIONS FOR UNSEEN DATA
+
+        st.subheader(" ")
+        st.subheader("Use your new model for new dataset!")
+
+        new_data = st.file_uploader("Upload your data here...", type=['xlsx'])
+
+        if new_data is not None:
+            # Read the uploaded file into a DataFrame
+            if new_data.type == "text/csv":
+                df_uploaded = pd.read_csv(new_data)
+            elif new_data.type == "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet":
+                df_uploaded = pd.read_excel(new_data)
+            else:
+                st.error("Unsupported file format")
+
+            # Choose variables
+            st.markdown('#### Choose variables to create your new data!')
+            # X variables
+            X_xgb_new = st.multiselect('Select descriptors to build the model:', df_uploaded.columns, key="x_multiselect_xgb_new")
+
+            # Validate X_rfc_new before using it
+            if X_xgb_new:
+                # Combine selected variables
+                df_xgb_new = pd.DataFrame(df_uploaded[X_xgb_new])
+                st.markdown('##### The dataset created by you:')
+                st.write(df_xgb_new)
+            else:
+                st.write("Please select descriptors to build the model.")
+
+            # Removing NA values
+            new_data_xgb = df_xgb_new.dropna(axis=0, how="any")
+            st.markdown(" ")
+            st.markdown('##### Your dataset after removing NA values looks like this:')
+
+            if st.button('View dataset', key='button_na_new_xgb'):
+                st.write(new_data_xgb)
+            else:
+                st.write(' ')
+
+
+            # Categorical variables
+            st.subheader('Categorical variables converting')
+            cat_variables_new_xgb = st.multiselect('Choose categorical variable(s) to separate descriptors:', new_data_xgb.columns, key="cat_var_xgb_new")
+
+            if cat_variables_new_xgb:
+                new_data_xgb = separate_categorical(new_data_xgb, cat_variables_new_xgb)
+                st.markdown(" ")
+                st.markdown('##### Your dataset with categorical variables separated looks like this:')
+                st.write(new_data_xgb)
+            else:
+                st.markdown('##### You have not selected any categorical variable to separate. Your dataset remains unchanged:')
+                new_data_xgb = new_data_xgb
+                st.write(new_data_xgb)
+
+                # Instead of error, show messages below  
+            if not X_xgb_new:
+                st.warning("Please select descriptors to build the model.")
+                execute_xgb = False
+            elif not all(new_data_xgb.dtypes.apply(lambda x: np.issubdtype(x, np.number) or np.issubdtype(x, np.bool_))):
+                st.warning("Ensure all selected descriptors are either in numeric or boolean format.")
+                execute_xgb = False
+
+            if execute_xgb:
+                # Standardization
+                st.subheader("Standardize your data")
+                st.markdown("Standardize the data for better model performance.")
+                scaler = StandardScaler()
+                new_data_scaled_xgb = scaler.fit_transform(new_data_xgb)
+
+                col1, col2 = st.columns(2)
+                with col1:
+                    st.markdown("##### Training Set (Standardized)")
+                    new_data_scaled_df_xgb = pd.DataFrame(new_data_scaled_xgb)
+                    st.write(new_data_scaled_df_xgb)
+
+                with col2:
+                    st.subheader("Check your predictions!")
+                    predictions_xgb = xgb.predict(new_data_scaled_df_xgb)
+                    st.write(predictions_xgb)
+
+        else:
+            st.subheader('Choose your new data to predict property/activity!')
+
+
+        st.subheader(" ")
+        st.subheader("Use your new model for new dataset!")
+
+        new_data = st.file_uploader("Upload your data here...", type=['xlsx'])
+
+        if new_data is not None:
+            # Read the uploaded file into a DataFrame
+            if new_data.type == "text/csv":
+                df_uploaded = pd.read_csv(new_data)
+            elif new_data.type == "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet":
+                df_uploaded = pd.read_excel(new_data)
+            else:
+                st.error("Unsupported file format")
+
+            # Choose variables
+            st.markdown('#### Choose variables to create your new data!')
+            # X variables
+            X_xgb_new = st.multiselect('Select descriptors to build the model:', df_uploaded.columns, key="x_multiselect_xgb_new")
+
+            # Validate X_rfc_new before using it
+            if X_xgb_new:
+                # Combine selected variables
+                df_xgb_new = pd.DataFrame(df_uploaded[X_xgb_new])
+                st.markdown('##### The dataset created by you:')
+                st.write(df_xgb_new)
+            else:
+                st.write("Please select descriptors to build the model.")
+
+            # Removing NA values
+            new_data_xgb = df_xgb_new.dropna(axis=0, how="any")
+            st.markdown(" ")
+            st.markdown('##### Your dataset after removing NA values looks like this:')
+
+            if st.button('View dataset', key='button_na_new_xgb'):
+                st.write(new_data_xgb)
+            else:
+                st.write(' ')
+
+
+            # Categorical variables
+            st.subheader('Categorical variables converting')
+            cat_variables_new_xgb = st.multiselect('Choose categorical variable(s) to separate descriptors:', new_data_xgb.columns, key="cat_var_xgb_new")
+
+            if cat_variables_new_xgb:
+                new_data_xgb = separate_categorical(new_data_xgb, cat_variables_new_xgb)
+                st.markdown(" ")
+                st.markdown('##### Your dataset with categorical variables separated looks like this:')
+                st.write(new_data_xgb)
+            else:
+                st.markdown('##### You have not selected any categorical variable to separate. Your dataset remains unchanged:')
+                new_data_xgb = new_data_xgb
+                st.write(new_data_xgb)
+
+                # Instead of error, show messages below  
+            if not X_xgb_new:
+                st.warning("Please select descriptors to build the model.")
+                execute_rfc = False
+            elif not all(new_data_xgb.dtypes.apply(lambda x: np.issubdtype(x, np.number) or np.issubdtype(x, np.bool_))):
+                st.warning("Ensure all selected descriptors are either in numeric or boolean format.")
+                execute_rfc = False
+
+            if execute_rfc:
+                # Standardization
+                st.subheader("Standardize your data")
+                st.markdown("Standardize the data for better model performance.")
+                scaler = StandardScaler()
+                new_data_scaled_xgb = scaler.fit_transform(new_data_xgb)
+
+                st.markdown("##### Training Set (Standardized)")
+                new_data_scaled_df_xgb = pd.DataFrame(new_data_scaled_xgb)
+                st.write(new_data_scaled_df_xgb)
+
+                st.subheader("Check your predictions!")
+                predictions_xgb = xgb.predict(new_data_scaled_df_xgb)
+                st.write(predictions_xgb)
+
+        else:
+            st.subheader(' ')
+
+
+
+
 # Neural Network (NN) function
 def nn_tab():
 
@@ -3312,7 +3968,7 @@ def nn_tab():
         # Applicability Domain
         st.subheader(" ")
         st.subheader("Applicability Domain")
-        AD_button_NN = st.radio('##### Which AD method you would like to try?', ('PCA boundary box', 'Euclidean distance -- not ready yet '), key="AD_button_NN")
+        AD_button_NN = st.radio('##### Which AD method you would like to try?', ('PCA boundary box', 'Euclidean distance'), key="AD_button_NN")
         if AD_button_NN == 'PCA boundary box':
             pca_AD = PCA()
             pca_AD.fit(X_train_NN_std)
@@ -4196,7 +4852,7 @@ def summary():
 
 st.sidebar.image("classifyml-logo.png",  width=200)
 st.sidebar.header("Choose your goal")
-tabs = ["🔎 Welcome in ClassiFy ML", "📘 How to Use It?", "📊 Data Quality", "💫 Principal Component Analysis (PCA)", "🏘️ K-Nearest Neighbour (KNN)", "🎰 Support Vector Machine (SVM)", "🌱 Decision Tree", "🌳 Random Forest", "🕸️ Neural Network", "👨‍👩‍👦 Summary"]
+tabs = ["🔎 Welcome in ClassiFy ML", "📘 How to Use It?", "📊 Data Quality", "💫 Principal Component Analysis (PCA)", "🏘️ K-Nearest Neighbour (KNN)", "🎰 Support Vector Machine (SVM)", "🌱 Decision Tree", "🌳 Random Forest", "🌪️ XGBoost", "🕸️ Neural Network", "👨‍👩‍👦 Summary"]
 active_tab = st.sidebar.selectbox("Select a tab:", tabs)  # Let the user choose the active tab
 
 st.sidebar.markdown("----")
@@ -4247,6 +4903,9 @@ if uploaded_file is not None:
 
     elif active_tab == "🌳 Random Forest":
         rfc_tab()
+
+    elif active_tab == "🌪️ XGBoost":
+        xgboost_tab()
     
     elif active_tab == "🕸️ Neural Network":
         nn_tab()
@@ -4291,6 +4950,11 @@ else:
     elif active_tab == "🌳 Random Forest":
         st.title("Random Forest Classifier (RFC)")
         st.markdown('##### Make a predictive model using the RFC method')
+        st.markdown("Submit your data in the left section to see what the data looks like!")
+    
+    elif active_tab == "🌪️ XGBoost":
+        st.title("XGBoost (XGB)")
+        st.markdown('##### Make a predictive model using the XGB method')
         st.markdown("Submit your data in the left section to see what the data looks like!")
 
     elif active_tab == "🕸️ Neural Network": 
